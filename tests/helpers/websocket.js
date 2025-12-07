@@ -13,8 +13,11 @@ async function waitForSocketConnection(page, timeout = 10000) {
   try {
     const connected = await page.evaluate((timeout) => {
       return new Promise((resolve) => {
+        // FIX: Socket is exposed as window.socketAdapter.socket, not window.socket
+        const socket = window.socketAdapter?.socket || window.socket;
+        
         // Already connected
-        if (window.socket?.connected) {
+        if (socket?.connected) {
           resolve(true);
           return;
         }
@@ -24,8 +27,8 @@ async function waitForSocketConnection(page, timeout = 10000) {
           resolve(false);
         }, timeout);
 
-        if (window.socket) {
-          window.socket.on('connect', () => {
+        if (socket) {
+          socket.on('connect', () => {
             clearTimeout(timer);
             resolve(true);
           });
@@ -71,7 +74,9 @@ async function waitForMultipleSocketConnections(pages, timeout = 10000) {
 async function isSocketConnected(page) {
   try {
     return await page.evaluate(() => {
-      return window.socket?.connected === true;
+      // FIX: Socket is exposed as window.socketAdapter.socket, not window.socket
+      const socket = window.socketAdapter?.socket || window.socket;
+      return socket?.connected === true;
     });
   } catch (error) {
     return false;
@@ -86,8 +91,10 @@ async function isSocketConnected(page) {
 async function getSocketStatus(page) {
   try {
     return await page.evaluate(() => {
-      if (!window.socket) return 'disconnected';
-      if (window.socket.connected) return 'connected';
+      // FIX: Socket is exposed as window.socketAdapter.socket, not window.socket
+      const socket = window.socketAdapter?.socket || window.socket;
+      if (!socket) return 'disconnected';
+      if (socket.connected) return 'connected';
       return 'connecting';
     });
   } catch (error) {
@@ -110,8 +117,10 @@ async function waitForSocketEvent(page, eventName, timeout = 5000) {
           resolve(null);
         }, timeout);
 
-        if (window.socket) {
-          window.socket.once(eventName, (data) => {
+        // FIX: Socket is exposed as window.socketAdapter.socket, not window.socket
+        const socket = window.socketAdapter?.socket || window.socket;
+        if (socket) {
+          socket.once(eventName, (data) => {
             clearTimeout(timer);
             resolve(data);
           });
@@ -146,13 +155,15 @@ async function emitSocketEvent(page, eventName, data, responseEvent = null, time
             resolve(null);
           }, timeout);
 
-          if (window.socket) {
-            window.socket.once(responseEvent, (responseData) => {
+          // FIX: Socket is exposed as window.socketAdapter.socket, not window.socket
+          const socket = window.socketAdapter?.socket || window.socket;
+          if (socket) {
+            socket.once(responseEvent, (responseData) => {
               clearTimeout(timer);
               resolve(responseData);
             });
             
-            window.socket.emit(eventName, data);
+            socket.emit(eventName, data);
           } else {
             clearTimeout(timer);
             resolve(null);
@@ -162,8 +173,10 @@ async function emitSocketEvent(page, eventName, data, responseEvent = null, time
     } else {
       // Just emit
       return await page.evaluate(({ eventName, data }) => {
-        if (window.socket) {
-          window.socket.emit(eventName, data);
+        // FIX: Socket is exposed as window.socketAdapter.socket, not window.socket
+        const socket = window.socketAdapter?.socket || window.socket;
+        if (socket) {
+          socket.emit(eventName, data);
           return true;
         }
         return false;
