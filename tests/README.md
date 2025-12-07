@@ -18,9 +18,9 @@ Umfassende End-to-End-Tests für die LichtBlick-Multiplayer-Game-Anwendung mit P
 *1 test skipped (feature not implemented)
 
 **Detaillierte Berichte**:
-- 📊 [TEST_SUMMARY.md](../TEST_SUMMARY.md) - Finale Zusammenfassung
-- 📋 [TEST_RESULTS.md](../TEST_RESULTS.md) - Detaillierte Fehleranalyse
-- 📈 [TEST_COVERAGE.md](../TEST_COVERAGE.md) - Coverage-Metriken
+- 📊 [TEST_SUMMARY.md](TEST_SUMMARY.md) - Finale Zusammenfassung
+- 📋 [TEST_RESULTS.md](TEST_RESULTS.md) - Detaillierte Fehleranalyse
+- 📈 [TEST_COVERAGE.md](TEST_COVERAGE.md) - Coverage-Metriken
 
 ## 📋 Übersicht
 
