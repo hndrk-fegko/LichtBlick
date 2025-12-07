@@ -79,24 +79,23 @@ test.describe('Authentication Tests', () => {
     });
 
     test('should allow valid player names', async ({ page }) => {
-      await page.goto('/player.html');
-      await page.waitForLoadState('networkidle');
-      
-      const nameInput = page.locator('input[name="playerName"], input#playerName, input[placeholder*="Name"]').first();
-      await expect(nameInput).toBeVisible({ timeout: 5000 });
-      
-      // Test valid names
+      // FIX: Improved timing and explicit waits for each iteration
+      // Test valid names sequentially with proper waits
       for (const validName of validPlayerNames.slice(0, 2)) {
-        await nameInput.fill(validName);
-        
-        const joinButton = page.locator('button:has-text("Beitreten"), button:has-text("Join"), button[type="submit"]').first();
-        await joinButton.click();
-        
-        await page.waitForTimeout(1000);
-        
-        // Reload page for next test
         await page.goto('/player.html');
         await page.waitForLoadState('networkidle');
+        
+        // FIX: Use actual selector from player.html (id="player-name")
+        const nameInput = page.locator('input#player-name').first();
+        await nameInput.waitFor({ state: 'visible', timeout: 5000 });
+        await nameInput.fill(validName);
+        
+        const joinButton = page.locator('button[type="submit"]').first();
+        await joinButton.waitFor({ state: 'visible', timeout: 3000 });
+        await joinButton.click();
+        
+        // FIX: Wait longer for successful join before reloading
+        await page.waitForTimeout(2000);
       }
     });
   });

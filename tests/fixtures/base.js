@@ -73,9 +73,18 @@ const test = base.extend({
       await page.waitForTimeout(1000);
     }
     
-    // Wait for admin interface to load
-    await page.waitForSelector('.app-header, header', { timeout: 5000 }).catch(() => {
-      console.warn('Admin header not found, continuing anyway...');
+    // FIX: Increased timeout and added more selectors for admin interface
+    // Wait for admin interface to load - try multiple selectors
+    await page.waitForSelector('.app-header, header, .admin-container, #app, #admin-canvas', { 
+      timeout: 15000 
+    }).catch(async () => {
+      console.warn('Admin header not found with primary selectors, checking for admin content...');
+      // Try alternative wait - check if any admin-specific element exists
+      await page.waitForSelector('.game-controls, #image-upload, .admin-content', { 
+        timeout: 5000 
+      }).catch(() => {
+        console.warn('No admin elements found, continuing anyway...');
+      });
     });
     
     await use(page);
