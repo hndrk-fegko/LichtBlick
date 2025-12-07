@@ -101,6 +101,12 @@
   background: var(--color-primary-light);
 }
 
+.upload-label.drag-over {
+  border-color: var(--color-success);
+  background: var(--color-success-light);
+  transform: scale(1.02);
+}
+
 .upload-icon {
   font-size: 1.5rem;
 }

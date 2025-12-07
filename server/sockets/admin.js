@@ -373,10 +373,13 @@ module.exports = (io, socket) => {
   });
 
   // Admin toggles QR code
-  socket.on('admin:toggle_qr', ({ enabled }) => {
-    if (!socket.rooms.has('admin')) return;
-    const qrEnabled = !!enabled;
-    logger.info('Admin toggled QR', { enabled: qrEnabled });
+  socket.on('admin:toggle_qr', ({ visible }, callback) => {
+    if (!socket.rooms.has('admin')) {
+      if (callback) callback({ success: false, message: 'Nicht authentifiziert' });
+      return;
+    }
+    const qrEnabled = !!visible;
+    logger.info('Admin toggled QR', { visible: qrEnabled });
     db.setConfig('qrEnabled', qrEnabled);
     const host = socket.handshake.headers.host;
     const pinObj = db.getPin();
@@ -386,6 +389,12 @@ module.exports = (io, socket) => {
       visible: qrEnabled, // backward compatibility
       url: joinUrl
     });
+    if (callback) {
+      callback({ 
+        success: true, 
+        message: qrEnabled ? 'QR-Code eingeblendet' : 'QR-Code ausgeblendet' 
+      });
+    }
   });
 
   // Admin generate PIN

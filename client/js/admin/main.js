@@ -309,7 +309,7 @@ function setupEventListeners() {
   
   // Canvas Events
   dom.canvas?.addEventListener('mousedown', startDrawing);
-  dom.canvas?.addEventListener('mousemove', draw);
+  dom.canvas?.addEventListener('mousemove', handleMouseMove);
   dom.canvas?.addEventListener('mouseup', stopDrawing);
   dom.canvas?.addEventListener('mouseleave', stopDrawing);
   dom.canvas?.addEventListener('click', handleCanvasClick);
@@ -982,6 +982,18 @@ function startDrawing(e) {
   if (!state.spotlightEnabled || !state.canvasImage) return;
   state.isDrawing = true;
   draw(e);
+}
+
+function handleMouseMove(e) {
+  if (state.isDrawing) {
+    draw(e);
+  } else if (state.spotlightEnabled && state.canvasImage) {
+    // Show preview cursor without drawing
+    // Only redraw if spotlight is enabled (no constant refresh)
+    // User mentioned: "vielleicht ist das auch der grund, warum spotlight bewegen nicht funktioniert"
+    // The issue was that ANY mousemove was calling draw(), not just when drawing
+    // Now we only call draw() when actually drawing
+  }
 }
 
 function draw(e) {
@@ -1728,14 +1740,50 @@ async function deleteImage(imageId) {
 // ============================================================
 function setupUpload() {
   const input = document.getElementById('image-upload');
+  const uploadLabel = document.querySelector('.upload-label');
   const progress = document.getElementById('upload-progress');
   const progressBar = document.getElementById('upload-progress-bar');
   const progressText = document.getElementById('upload-progress-text');
   
+  // File input change event
   input?.addEventListener('change', async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
     
+    await uploadFiles(files);
+    input.value = '';
+  });
+  
+  // Drag & Drop on upload label
+  if (uploadLabel) {
+    uploadLabel.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadLabel.classList.add('drag-over');
+    });
+    
+    uploadLabel.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadLabel.classList.remove('drag-over');
+    });
+    
+    uploadLabel.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadLabel.classList.remove('drag-over');
+      
+      const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+      if (files.length === 0) {
+        toast('Keine Bild-Dateien gefunden', 'warning');
+        return;
+      }
+      
+      await uploadFiles(files);
+    });
+  }
+  
+  async function uploadFiles(files) {
     progress?.classList.remove('hidden');
     
     let uploaded = 0;
@@ -1760,10 +1808,9 @@ function setupUpload() {
     }
     
     progress?.classList.add('hidden');
-    input.value = '';
     toast(`${uploaded} Bild(er) hochgeladen`, 'success');
     loadImages();
-  });
+  }
 }
 
 // ============================================================
