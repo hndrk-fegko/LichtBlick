@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LichtBlick - Admin Command Center</title>
+  <link rel="stylesheet" href="/css/admin-new.css">
+</head>
+<body>
+  <!-- Auth Screen (wird bei fehlendem Token gezeigt) -->
+  <div id="auth-screen" class="auth-screen hidden">
+    <div class="auth-box">
+      <h1>🔐 Admin Zugang</h1>
+      <p>Bitte Admin-PIN eingeben:</p>
+      <form id="auth-form">
+        <input type="password" id="admin-pin" placeholder="PIN" minlength="4" maxlength="10" required autocomplete="off" />
+        <button type="submit" class="btn btn-primary">Anmelden</button>
+      </form>
+      <div id="auth-error" class="auth-error hidden"></div>
+    </div>
+  </div>
+
+  <!-- Main App Container -->
+  <div class="app">
+    
+    <!-- === HEADER === -->
+    <header class="app-header">
+      <div class="header-left">
+        <h1 class="logo">🔦 LichtBlick</h1>
+        <span class="phase-badge" data-phase="setup">⚙️ Setup</span>
+      </div>
+      
+      <div class="header-center">
+        <div class="status-indicators">
+          <span class="connection-status" data-status="disconnected" title="Server-Verbindung">
+            <span class="status-dot"></span>
+            <span class="status-label">Server</span>
+          </span>
+          <span class="beamer-status" data-status="disconnected" title="Beamer-Verbindung">
+            <span class="status-dot"></span>
+            <span class="status-label">Beamer</span>
+          </span>
+          <span class="player-indicator" title="Verbundene Spieler">
+            👥 <span class="player-count">0</span>
+          </span>
+        </div>
+      </div>
+      
+      <div class="header-right">
+        <span class="admin-session-badge hidden" id="admin-session-badge" title="Mehrere Admin-Sessions aktiv">
+          ⚠️ <span class="admin-session-count">2</span> Admins
+        </span>
+        <span class="pin-timer hidden" id="pin-timer" title="PIN-Ablauf">
+          🔒 <span class="pin-timer-value">0:00</span>
+        </span>
+        <button class="header-btn" id="btn-beamer" title="Beamer öffnen">
+          🖥️ <span class="btn-label">Beamer</span>
+        </button>
+        <button class="header-btn" id="btn-sidebar" title="Bilder-Sidebar (Strg+S)">
+          📁 <span class="btn-label">Bilder</span>
+        </button>
+        <button class="header-btn" id="btn-settings" title="Einstellungen (Strg+,)">
+          ⚙️
+        </button>
+      </div>
+    </header>
+
+    <!-- === MAIN CONTENT === -->
+    <main class="app-main">
+      
+      <!-- Content Area (Canvas + Leaderboard) -->
+      <div class="content-area">
+        
+        <!-- Spotlight Canvas Section -->
+        <section class="canvas-section">
+          <div class="canvas-wrapper">
+            <div class="canvas-container">
+              <canvas id="spotlight-canvas"></canvas>
+            </div>
+            
+            <!-- Canvas Overlay Controls -->
+            <div class="canvas-overlay-controls">
+              <span class="current-image-info" id="current-image-info">Kein Bild ausgewählt</span>
+            </div>
+          </div>
+          
+          <!-- Spotlight Controls -->
+          <div class="spotlight-controls">
+            <div class="control-item">
+              <label class="toggle-switch">
+                <input type="checkbox" id="spotlight-toggle" checked>
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="control-label">Spotlight</span>
+            </div>
+            
+            <div class="slider-group">
+              <label class="slider-label">Größe:</label>
+              <input type="range" id="spotlight-size" class="slider-input" min="20" max="200" value="80">
+              <span class="slider-value" id="spotlight-size-value">80px</span>
+            </div>
+            
+            <div class="slider-group">
+              <label class="slider-label">Stärke:</label>
+              <input type="range" id="spotlight-strength" class="slider-input" min="10" max="100" value="100">
+              <span class="slider-value" id="spotlight-strength-value">100%</span>
+            </div>
+            
+            <div class="slider-group">
+              <label class="slider-label">Fokus:</label>
+              <input type="range" id="spotlight-focus" class="slider-input" min="0" max="100" value="70">
+              <span class="slider-value" id="spotlight-focus-value">70%</span>
+            </div>
+            
+            <button class="btn btn-sm btn-ghost" id="btn-clear-spotlights" title="Alle Spotlights löschen">
+              🗑️ Clear
+            </button>
+          </div>
+        </section>
+        
+        <!-- Leaderboard Section -->
+        <section class="leaderboard-section">
+          <div class="leaderboard-header">
+            <h2>🏆 Leaderboard</h2>
+            <span class="leaderboard-count" id="leaderboard-count">0 Spieler</span>
+          </div>
+          <div class="leaderboard-list" id="leaderboard-list">
+            <div class="leaderboard-empty">
+              Noch keine Spieler
+            </div>
+          </div>
+        </section>
+        
+      </div>
+      
+      <!-- Game Images Strip -->
+      <div class="game-strip">
+        <button class="strip-nav-btn left" id="strip-nav-left" aria-label="Zurück">◀</button>
+        
+        <div class="strip-scroll" id="strip-scroll">
+          <div class="strip-empty">
+            Keine Bilder im Spiel. Füge Bilder über die Sidebar hinzu.
+          </div>
+        </div>
+        
+        <button class="strip-nav-btn right" id="strip-nav-right" aria-label="Weiter">▶</button>
+      </div>
+      
+      <!-- Control Bar entfernt - Buttons sind jetzt im Footer -->
+      
+    </main>
+
+    <!-- === FOOTER === -->
+    <footer class="app-footer">
+      <div class="footer-row footer-controls">
+        <div class="control-group phase-controls">
+          <button class="btn-game btn-start" id="btn-start-game">
+            ▶️ START
+          </button>
+          <button class="btn-game btn-reveal" id="btn-reveal" disabled>
+            👁️ AUFDECKEN
+          </button>
+        </div>
+        
+        <div class="control-group-divider"></div>
+        
+        <div class="control-group">
+          <button class="btn-game btn-next-round" id="btn-next-image" disabled>
+            ⏭️ NÄCHSTES
+          </button>
+          <button class="btn-game btn-end" id="btn-end-game" disabled>
+            ⏹️ BEENDEN
+          </button>
+        </div>
+        
+        <div class="control-group-divider"></div>
+        
+        <div class="control-group qr-controls">
+          <label class="toggle-switch toggle-compact" title="QR-Code auf Beamer (Q)">
+            <input type="checkbox" id="qr-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="toggle-label">📱 QR</span>
+        </div>
+        
+        <div class="footer-progress">
+          <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+          </div>
+          <span class="progress-label" id="progress-label">0 / 0 Bilder</span>
+        </div>
+      </div>
+      
+      <div class="footer-row footer-shortcuts">
+        <span class="shortcut-hint">
+          <span class="shortcut-key">←</span><span class="shortcut-key">→</span>
+          <span class="shortcut-action">Bild wählen</span>
+        </span>
+        <span class="shortcut-divider">│</span>
+        <span class="shortcut-hint">
+          <span class="shortcut-key">Space</span>
+          <span class="shortcut-action">Start/Aufdecken</span>
+        </span>
+        <span class="shortcut-divider">│</span>
+        <span class="shortcut-hint">
+          <span class="shortcut-key">Enter</span>
+          <span class="shortcut-action">Nächstes</span>
+        </span>
+        <span class="shortcut-divider">│</span>
+        <span class="shortcut-hint">
+          <span class="shortcut-key">?</span>
+          <span class="shortcut-action">Hilfe</span>
+        </span>
+      </div>
+    </footer>
+
+  </div><!-- /.app -->
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h2>📁 Bilder-Pool</h2>
+      <button class="btn btn-ghost sidebar-close" id="sidebar-close" title="Schließen (Esc)">✕</button>
+    </div>
+    
+    <div class="sidebar-upload">
+      <label for="image-upload" class="upload-label">
+        <span class="upload-icon">📤</span>
+        <span class="upload-text">Bilder hochladen</span>
+        <input type="file" id="image-upload" multiple accept="image/*" hidden>
+      </label>
+      <div class="upload-progress hidden" id="upload-progress">
+        <div class="upload-progress-bar" id="upload-progress-bar"></div>
+        <span class="upload-progress-text" id="upload-progress-text">0%</span>
+      </div>
+    </div>
+    
+    <div class="sidebar-filters">
+      <button class="filter-btn active" data-filter="all">Alle</button>
+      <button class="filter-btn" data-filter="unused">Frei</button>
+      <button class="filter-btn" data-filter="ingame">Im Spiel</button>
+    </div>
+    
+    <div class="sidebar-pool" id="image-pool">
+      <div class="pool-empty">
+        Noch keine Bilder hochgeladen
+      </div>
+    </div>
+    
+    <div class="sidebar-actions">
+      <button class="btn btn-primary btn-block" id="btn-add-all-free" title="Alle freien Bilder zum Spiel hinzufügen">
+        ➕ Alle freien hinzufügen
+      </button>
+    </div>
+    
+    <div class="sidebar-stats">
+      📊 <span id="pool-stats">0 Bilder | 0 im Spiel</span>
+    </div>
+  </aside>
+  
+  <!-- Context Menu für Bilder -->
+  <div class="context-menu" id="image-context-menu">
+    <button class="context-menu-item" data-action="add-to-game">
+      ➕ Zum Spiel hinzufügen
+    </button>
+    <button class="context-menu-item" data-action="remove-from-game">
+      ➖ Aus Spiel entfernen
+    </button>
+    <div class="context-menu-divider"></div>
+    <button class="context-menu-item" data-action="set-start">
+      ⭐ Als Startbild setzen
+    </button>
+    <button class="context-menu-item" data-action="set-end">
+      🏁 Als Endbild setzen
+    </button>
+    <button class="context-menu-item" data-action="clear-role" id="ctx-clear-role" style="display: none;">
+      ✖️ Rolle entfernen
+    </button>
+    <div class="context-menu-divider"></div>
+    <button class="context-menu-item context-menu-danger" data-action="delete">
+      🗑️ Bild löschen
+    </button>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Settings Modal mit 4 Tabs -->
+  <div class="modal-backdrop hidden" id="settings-modal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h2>⚙️ Einstellungen</h2>
+        <button class="modal-close" data-close-modal="settings-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <!-- Tabs -->
+        <div class="settings-tabs">
+          <button class="settings-tab active" data-tab="general">🔗 Allgemein</button>
+          <button class="settings-tab" data-tab="names">📝 Namen</button>
+          <button class="settings-tab" data-tab="scoring">🎯 Punkte</button>
+          <button class="settings-tab" data-tab="danger">⚠️ Gefahr</button>
+        </div>
+        
+        <!-- Tab 1: Allgemein -->
+        <div class="settings-panel active" data-panel="general">
+          <div class="settings-section">
+            <h3>🔗 Spieler-Link</h3>
+            <p class="settings-hint">Wird auch als QR-Code auf dem Beamer angezeigt</p>
+            <div class="settings-input-group">
+              <input type="text" id="player-url" class="settings-input" readonly>
+              <button class="btn btn-ghost" id="copy-player-url" title="Kopieren">📋</button>
+            </div>
+          </div>
+          
+          <div class="settings-section">
+            <h3>🔐 Admin-Schutz</h3>
+            <p class="settings-hint">PIN ist nur für zusätzliche Sicherheit (Token reicht normalerweise)</p>
+            <div class="settings-row">
+              <label class="toggle-switch">
+                <input type="checkbox" id="pin-enabled">
+                <span class="toggle-slider"></span>
+              </label>
+              <span>PIN-Schutz aktivieren</span>
+            </div>
+            <input type="password" id="admin-pin-setting" class="settings-input" placeholder="Neuer PIN (mind. 4 Zeichen)" style="margin-top: 0.5rem;">
+            <div class="pin-status-box hidden" id="pin-status-box">
+              <span class="pin-status-icon">🔒</span>
+              <span class="pin-status-text">PIN AKTIV - Verbleibend: <span id="pin-remaining">0:00</span></span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Tab 2: Namen (Wörterliste) -->
+        <div class="settings-panel" data-panel="names">
+          <div class="settings-section">
+            <h3>📝 Wörterliste für Spielernamen</h3>
+            <p class="settings-hint">Ein Wort pro Zeile. Spieler bekommen beim Beitritt zufällig eines dieser Wörter als Namen.</p>
+            <textarea id="wordlist" class="settings-textarea" rows="10" placeholder="Stern&#10;Engel&#10;Krippe&#10;Hirte&#10;Lamm&#10;König&#10;..."></textarea>
+          </div>
+        </div>
+        
+        <!-- Tab 3: Punkte -->
+        <div class="settings-panel" data-panel="scoring">
+          <div class="settings-section">
+            <h3>🎯 Punktesystem</h3>
+            
+            <div class="scoring-item">
+              <label class="scoring-label">Basis-Punkte pro richtige Antwort:</label>
+              <div class="scoring-input-row">
+                <input type="number" id="base-points" class="settings-input input-sm" value="100" min="1" max="1000">
+                <span class="scoring-unit">Punkte</span>
+              </div>
+            </div>
+            
+            <div class="scoring-item">
+              <label class="scoring-label">Geschwindigkeitsbonus:</label>
+              <div class="settings-row">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="speed-bonus-enabled" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+                <span>Aktiviert</span>
+              </div>
+            </div>
+            
+            <div class="scoring-item" id="speed-bonus-settings">
+              <label class="scoring-label">Maximal-Bonus für schnelle Antwort:</label>
+              <div class="scoring-input-row">
+                <input type="number" id="speed-bonus-percent" class="settings-input input-sm" value="50" min="0" max="200">
+                <span class="scoring-unit">%</span>
+              </div>
+            </div>
+            
+            <div class="scoring-preview">
+              <h4>Vorschau:</h4>
+              <ul id="scoring-preview-list">
+                <li>• Schnellste Antwort: <strong><span id="preview-max">150</span> Punkte</strong></li>
+                <li>• Langsamste Antwort: <strong><span id="preview-min">100</span> Punkte</strong></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Tab 4: Gefahr -->
+        <div class="settings-panel" data-panel="danger">
+          <div class="danger-section">
+            <h3>🔄 Soft Reset</h3>
+            <p>Setzt Punkte und Spielstatus zurück. Bilder bleiben erhalten.</p>
+            <button class="btn btn-warning" id="btn-soft-reset">Ausführen</button>
+          </div>
+          
+          <div class="danger-section">
+            <h3>🧹 Complete Reset</h3>
+            <p>Entfernt alle Bilder aus dem Spiel. Pool und Uploads bleiben erhalten.</p>
+            <button class="btn btn-warning" id="btn-complete-reset">Ausführen</button>
+          </div>
+          
+          <div class="danger-section">
+            <h3>🔄 Server neustarten</h3>
+            <p>Startet den Server neu. Alle Verbindungen werden getrennt.</p>
+            <button class="btn btn-danger" id="btn-restart-server">Ausführen</button>
+          </div>
+          
+          <div class="danger-section danger-factory">
+            <h3>☢️ Factory Reset</h3>
+            <p class="danger-warning-text">LÖSCHT ALLES: Bilder, Einstellungen, Datenbank. ⚠️ NICHT RÜCKGÄNGIG MACHBAR!</p>
+            
+            <div class="factory-confirm">
+              <label class="checkbox-label">
+                <input type="checkbox" id="factory-confirm-checkbox">
+                <span>Ich weiß was ich tue</span>
+              </label>
+              
+              <div class="factory-input-group">
+                <label>Tippe "LICHT AUS" zum Bestätigen:</label>
+                <input type="text" id="factory-confirm-input" class="settings-input" placeholder="LICHT AUS" autocomplete="off">
+              </div>
+              
+              <button class="btn btn-danger" id="btn-factory-reset" disabled>Factory Reset ausführen</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-close-modal="settings-modal">Schließen</button>
+        <button class="btn btn-primary" id="save-settings">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Help Modal -->
+  <div class="modal-backdrop hidden" id="help-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>❓ Hilfe - Tastaturkürzel</h2>
+        <button class="modal-close" data-close-modal="help-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <table class="help-table">
+          <tr><td><kbd>Space</kbd></td><td>Spiel starten / Bild aufdecken</td></tr>
+          <tr><td><kbd>Enter</kbd></td><td>Nächstes Bild</td></tr>
+          <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Bild auswählen</td></tr>
+          <tr><td><kbd>Strg+S</kbd></td><td>Sidebar öffnen</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Sidebar/Modal schließen</td></tr>
+        </table>
+        
+        <h3 style="margin-top: 1rem">Spotlight</h3>
+        <ul>
+          <li><strong>Klicken</strong> - Spotlight fixieren</li>
+          <li><strong>Ziehen</strong> - Spotlight-Vorschau</li>
+          <li><strong>Doppelklick</strong> auf Pool-Bild - Zum Spiel hinzufügen</li>
+          <li><strong>Rechtsklick</strong> auf Pool-Bild - Kontextmenü</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/socket-adapter.js?v=2"></script>
+  <script src="/js/spotlight-renderer.js?v=2"></script>
+  <script src="/js/admin/main.js?v=4"></script>
+</body>
+</html>

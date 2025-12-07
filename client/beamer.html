@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LichtBlick - Beamer</title>
+  <link rel="stylesheet" href="/css/beamer.css?v=3">
+</head>
+<body>
+  <!-- Lobby Screen -->
+  <div id="lobby-screen" class="screen active">
+    <!-- Start image background (if set) -->
+    <div id="start-image-bg" class="start-image-bg"></div>
+    
+    <!-- Default lobby content (shown when no start image) -->
+    <div id="lobby-content-default" class="lobby-content">
+      <h1 class="logo">🔦 LichtBlick</h1>
+      <p class="subtitle">Warte auf Spielstart...</p>
+      
+      <div class="loading-animation">
+        <div class="spinner"></div>
+      </div>
+    </div>
+    
+    <!-- Waiting info box (shown when start image is displayed) -->
+    <div id="waiting-info-box" class="waiting-info-box hidden">
+      <span class="spinner-small"></span>
+      <span>Warte auf Spielstart...</span>
+    </div>
+  </div>
+
+  <!-- Game Screen -->
+  <div id="game-screen" class="screen">
+    <canvas id="game-canvas"></canvas>
+    <div class="game-overlay">
+      <div class="timer hidden" id="timer"></div>
+    </div>
+  </div>
+
+  <!-- Result Screen -->
+  <div id="result-screen" class="screen">
+    <div class="result-content">
+      <h1 class="result-title">🏆 Gewinner!</h1>
+      <div id="leaderboard" class="leaderboard"></div>
+      <p class="thank-you">Vielen Dank fürs Mitspielen! 🎉</p>
+    </div>
+  </div>
+
+  <!-- QR Code Overlay -->
+  <div id="qr-overlay" class="qr-overlay hidden">
+    <div class="qr-box">
+      <h2>Jetzt mitspielen!</h2>
+      <canvas id="qr-canvas"></canvas>
+      <p class="qr-url" id="qr-url"></p>
+      <p class="qr-instruction">Scanne den QR-Code oder besuche die URL</p>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/socket-adapter.js?v=4"></script>
+  <script src="/js/spotlight-renderer.js?v=1"></script>
+  <script src="/js/beamer.js?v=5"></script>
+</body>
+</html>

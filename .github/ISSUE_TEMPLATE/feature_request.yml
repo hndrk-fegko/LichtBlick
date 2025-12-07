@@ -1,0 +1,57 @@
+name: Feature Request
+description: Schlage ein neues Feature vor
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke für deinen Feature-Vorschlag! 🚀
+        
+        Bitte beschreibe das Feature so detailliert wie möglich.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Bereich
+      options:
+        - Admin UI
+        - Beamer Display
+        - Player Interface
+        - Backend/Server
+        - Dokumentation
+        - Deployment
+        - Sonstiges
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Use Case
+      description: Welches Problem löst dieses Feature?
+      placeholder: "Als Moderator möchte ich... weil..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Vorgeschlagene Lösung
+      description: Wie sollte das Feature funktionieren?
+      placeholder: "Ein Button in der Admin-UI, der..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativen
+      description: Hast du andere Lösungsansätze erwogen?
+      placeholder: "Alternative wäre..."
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Zusätzlicher Kontext
+      description: Screenshots, Mockups, Beispiele, etc.

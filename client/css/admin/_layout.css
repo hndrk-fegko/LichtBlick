@@ -1,0 +1,222 @@
+/**
+ * Admin Layout
+ * Main Grid Structure for the Command Center Layout
+ * 
+ * Layout Structure (V2 - Buttons in Footer):
+ * ┌─────────────────────────────────────────────────────────────┐
+ * │                        HEADER                               │
+ * ├──────────┬──────────────────────────────────┬───────────────┤
+ * │          │                                  │               │
+ * │ SIDEBAR  │         MAIN AREA                │  LEADERBOARD  │
+ * │ (hidden) │   (Canvas + Spotlight Controls)  │    PANEL      │
+ * │          │                                  │               │
+ * │          ├──────────────────────────────────┴───────────────┤
+ * │          │              GAME IMAGES STRIP                   │
+ * ├──────────┴──────────────────────────────────────────────────┤
+ * │                 FOOTER (Buttons + Shortcuts)                │
+ * └─────────────────────────────────────────────────────────────┘
+ */
+
+/* === App Container === */
+.app {
+  display: grid;
+  grid-template-rows: var(--header-height) 1fr var(--footer-height);
+  grid-template-columns: 1fr;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+/* === Main Layout === */
+.app-main {
+  display: grid;
+  grid-template-rows: 1fr var(--game-strip-height);
+  grid-template-columns: 1fr var(--leaderboard-width);
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  overflow: hidden;
+  min-height: 0; /* Important for grid children to shrink */
+}
+
+/* Canvas Area spans full height except strip */
+.canvas-area,
+.content-area {
+  grid-row: 1 / 2;
+  grid-column: 1 / 2;
+  display: flex;
+  gap: var(--spacing-md);
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Canvas Section takes remaining space */
+.canvas-section {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Leaderboard Panel */
+.leaderboard-panel,
+.leaderboard-section {
+  grid-row: 1 / 2;
+  grid-column: 2 / 3;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Game Strip spans full width */
+.game-strip-area,
+.game-strip {
+  grid-row: 2 / 3;
+  grid-column: 1 / -1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* === Sidebar Overlay (when open) === */
+.app.sidebar-open::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: calc(var(--z-sidebar) - 1);
+  animation: fadeIn var(--transition-fast);
+}
+
+/* === Cards === */
+.card {
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--spacing-md);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.card-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.card-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* === Panel (full height card) === */
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.panel-header {
+  flex-shrink: 0;
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--spacing-md);
+}
+
+/* === Strip (horizontal scrollable) === */
+.strip {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  height: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.strip-scroll {
+  flex: 1;
+  display: flex;
+  gap: var(--spacing-sm);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  padding: var(--spacing-xs) 0;
+}
+
+.strip-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+/* === Bar (horizontal action bar) === */
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-lg);
+  height: 100%;
+  padding: 0 var(--spacing-lg);
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.bar-group {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.bar-separator {
+  width: 1px;
+  height: 32px;
+  background: var(--color-border);
+}
+
+/* === Responsive Adjustments === */
+@media (max-width: 1400px) {
+  :root {
+    --leaderboard-width: 280px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .app-main {
+    grid-template-columns: 1fr;
+  }
+  
+  .leaderboard-panel,
+  .leaderboard-section {
+    display: none; /* Hide on smaller screens, show in sidebar */
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --header-height: 50px;
+    --footer-height: 80px;
+    --game-strip-height: 100px;
+  }
+  
+  .app-main {
+    padding: var(--spacing-sm);
+    gap: var(--spacing-sm);
+  }
+}

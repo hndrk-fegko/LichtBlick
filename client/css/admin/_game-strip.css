@@ -1,0 +1,332 @@
+/**
+ * Game Images Strip Styles
+ */
+
+.game-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  height: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Scroll Buttons */
+.strip-nav-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-lg);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.strip-nav-btn:hover {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.strip-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Scrollable Container */
+.strip-scroll {
+  flex: 1;
+  display: flex;
+  gap: var(--spacing-sm);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  padding: var(--spacing-xs) 0;
+  min-width: 0;
+}
+
+.strip-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+/* Game Card Container (Card + Input) */
+.game-card-container {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  width: 90px;
+}
+
+/* Game Image Card */
+.game-card {
+  position: relative;
+  width: 100%;
+  background: var(--color-bg);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.game-card:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Card State: Selected/Current (blau) */
+.game-card.current {
+  border-color: var(--color-primary);
+  border-width: 3px;
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+/* Card State: Played (grau) */
+.game-card.played {
+  opacity: 0.6;
+  filter: grayscale(40%);
+  border-color: var(--color-secondary);
+}
+
+.game-card.played:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* Card State: Start (grün) */
+.game-card.is-start {
+  border-color: var(--color-success);
+  border-width: 3px;
+}
+
+/* Card State: End (rot) */
+.game-card.is-end {
+  border-color: var(--color-danger);
+  border-width: 3px;
+}
+
+/* Card State: Start AND End (halb grün, halb rot) */
+.game-card.is-start.is-end {
+  border-width: 3px;
+  border-left-color: var(--color-success);
+  border-top-color: var(--color-success);
+  border-right-color: var(--color-danger);
+  border-bottom-color: var(--color-danger);
+}
+
+/* Card State: Skipped (lila) */
+.game-card.skipped {
+  border-color: #8b5cf6;
+  opacity: 0.7;
+}
+
+.game-card.skipped::after {
+  content: 'Übersprungen';
+  position: absolute;
+  inset: 0;
+  background: rgba(139, 92, 246, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xs);
+  color: white;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+/* Card Thumbnail */
+.game-card-thumb {
+  width: 100%;
+  height: 55px;
+  object-fit: cover;
+  display: block;
+}
+
+/* Card Badges */
+.game-card-badge {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.6);
+}
+
+.game-card-badge.badge-start {
+  top: 2px;
+  left: 2px;
+  background: var(--color-success);
+}
+
+.game-card-badge.badge-end {
+  top: 2px;
+  right: 2px;
+  background: var(--color-danger);
+}
+
+.game-card-badge.badge-playing {
+  top: 2px;
+  left: 2px;
+  background: var(--color-primary);
+  color: white;
+}
+
+/* Card Footer with Order Number */
+.game-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px;
+  background: var(--color-bg-elevated);
+  font-size: var(--font-size-xs);
+}
+
+/* Order Badge */
+.game-card-order {
+  font-weight: var(--font-weight-bold);
+  padding: 1px 4px;
+  background: var(--color-primary);
+  color: white;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+}
+
+.game-card.played .game-card-order {
+  background: var(--color-secondary);
+}
+
+.game-card.is-start .game-card-order {
+  background: var(--color-success);
+}
+
+.game-card.is-end .game-card-order {
+  background: var(--color-danger);
+}
+
+/* Played Check */
+.game-card-check {
+  font-size: var(--font-size-sm);
+  color: var(--color-success);
+}
+
+/* Delete Button (✕) */
+.game-card-delete {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-danger);
+  color: white;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: bold;
+  opacity: 0;
+  transition: var(--transition-fast);
+  cursor: pointer;
+  border: none;
+  z-index: 10;
+}
+
+.game-card:hover .game-card-delete {
+  opacity: 1;
+}
+
+.game-card-delete:hover {
+  transform: scale(1.1);
+  background: var(--color-danger-hover);
+}
+
+/* Hide delete on played, start, end cards */
+.game-card.played .game-card-delete,
+.game-card.is-start .game-card-delete,
+.game-card.is-end .game-card-delete {
+  display: none;
+}
+
+/* Answer Input under Card */
+.game-card-input {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  text-align: center;
+  transition: var(--transition-fast);
+  background: var(--color-bg);
+}
+
+.game-card-input:focus {
+  border-color: var(--color-primary);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-primary-light);
+}
+
+.game-card-input:disabled {
+  background: var(--color-secondary-light);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.game-card-input.locked {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--color-bg),
+    var(--color-bg) 2px,
+    var(--color-border) 2px,
+    var(--color-border) 4px
+  );
+}
+
+/* Empty State */
+.strip-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-style: italic;
+  padding: var(--spacing-md);
+}
+
+/* Drag & Drop */
+.game-card.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+}
+
+.game-card-container.drag-over .game-card {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+/* === Responsive === */
+@media (max-width: 768px) {
+  .game-card-container {
+    width: 70px;
+  }
+  
+  .game-card-thumb {
+    height: 40px;
+  }
+  
+  .game-card-input {
+    font-size: 10px;
+    padding: 2px 4px;
+  }
+}

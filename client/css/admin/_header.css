@@ -1,0 +1,286 @@
+/**
+ * Admin Header Styles
+ */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--spacing-lg);
+  background: var(--color-bg-elevated);
+  border-bottom: 1px solid var(--color-border);
+  z-index: var(--z-sticky);
+}
+
+/* === Left Section: Logo + Title === */
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.header-logo {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.header-logo-icon {
+  font-size: 1.5em;
+}
+
+/* === Center Section: Status Info === */
+.header-center {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.status-indicators {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.player-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.player-count {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+/* Phase Badge */
+.phase-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.phase-badge[data-phase="lobby"] {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.phase-badge[data-phase="playing"] {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+}
+
+.phase-badge[data-phase="ended"] {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+}
+
+/* Player Counter */
+.player-counter {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.player-counter-icon {
+  font-size: 1.2em;
+}
+
+.player-counter-value {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+/* Connection Status & Beamer Status */
+.connection-status,
+.beamer-status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-secondary);
+  flex-shrink: 0;
+}
+
+.connection-status[data-status="connected"] .status-dot,
+.beamer-status[data-status="connected"] .status-dot {
+  background: var(--color-success);
+  box-shadow: 0 0 6px var(--color-success);
+}
+
+.connection-status[data-status="disconnected"] .status-dot,
+.beamer-status[data-status="disconnected"] .status-dot {
+  background: var(--color-danger);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Admin Sessions Warning */
+.admin-sessions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+  background: var(--color-bg);
+}
+
+.admin-sessions.warning {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+}
+
+/* === Right Section: Action Buttons === */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+/* PIN Timer */
+.pin-timer {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-warning-light);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-warning);
+}
+
+.pin-timer.hidden {
+  display: none;
+}
+
+.pin-timer-value {
+  font-family: var(--font-mono);
+}
+
+/* Admin Session Badge */
+.admin-session-badge {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-danger-light);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-danger);
+  animation: badge-pulse 2s infinite;
+}
+
+.admin-session-badge.hidden {
+  display: none;
+}
+
+@keyframes badge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.header-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  min-width: 40px;
+  height: 40px;
+  padding: 0 var(--spacing-sm);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-lg);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.header-btn:hover {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.header-btn.active {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.header-btn .btn-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Keyboard Hint */
+.header-btn[data-key]::after {
+  content: attr(data-key);
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  font-size: var(--font-size-xs);
+  padding: 1px 4px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.header-btn:hover[data-key]::after {
+  opacity: 1;
+}
+
+/* === Responsive === */
+@media (max-width: 1200px) {
+  .header-center {
+    gap: var(--spacing-md);
+  }
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    padding: 0 var(--spacing-md);
+  }
+  
+  .header-logo span {
+    display: none;
+  }
+  
+  .phase-badge span {
+    display: none;
+  }
+  
+  .connection-status span {
+    display: none;
+  }
+}

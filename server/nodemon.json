@@ -1,0 +1,8 @@
+{
+  "watch": ["*.js", "routes", "sockets", "db", "services", "utils"],
+  "ext": "js,json",
+  "ignore": ["logs/*", "node_modules/*"],
+  "delay": "500",
+  "signal": "SIGTERM",
+  "restartable": "rs"
+}

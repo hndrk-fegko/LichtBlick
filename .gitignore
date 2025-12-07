@@ -1,0 +1,58 @@
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+
+# Environment Variables
+.env
+server/.env
+
+# Logs
+logs/
+*.log
+server/logs/
+
+# Database (SQLite)
+data/*.db
+data/*.db-shm
+data/*.db-wal
+*.db
+*.db-shm
+*.db-wal
+
+# Uploads (user-generated content)
+data/uploads/*
+!data/uploads/.gitkeep
+
+# Backups
+backup_*/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# Test / Debug
+test-results/
+coverage/
+.nyc_output/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Windows PowerShell
+*.ps1.bak
+
+# Restart trigger (dev tool)
+.restart-trigger

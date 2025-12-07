@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LichtBlick</title>
+  <link rel="stylesheet" href="/css/index.css">
+</head>
+<body>
+  <div class="container">
+    <h1>🔦 LichtBlick</h1>
+    
+    <div class="status">
+      <h2>✅ Server läuft</h2>
+      <p><strong>Version:</strong> 3.0.0</p>
+      <p><strong>Backend:</strong> Node.js + Express + Socket.IO</p>
+      <p><strong>Database:</strong> SQLite3 (WAL Mode)</p>
+      <p><strong>Status:</strong> <span id="status">Checking...</span></p>
+    </div>
+
+    <div class="links">
+      <h3>Quick Links:</h3>
+      <a href="/admin.html" class="btn">🔧 Admin Panel</a>
+      <a href="/beamer.html" class="btn">📺 Beamer View</a>
+      <a href="/player.html" class="btn">📱 Player Join</a>
+      <a href="/api/health" class="btn" target="_blank">🏥 Health Check</a>
+    </div>
+
+    <div class="footer-info">
+      <p><small>Dokumentation: <code>/docs/README.md</code></small></p>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    // Check server health
+    fetch('/api/health')
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById('status').innerHTML = `
+          <span class="status-online">● Online</span> | 
+          Uptime: ${Math.floor(data.uptime)}s | 
+          Memory: ${data.memory.heapUsed}
+        `;
+      })
+      .catch(err => {
+        document.getElementById('status').innerHTML = '<span class="status-error">● Error</span>';
+      });
+
+    // Test WebSocket connection
+    const socket = io();
+    socket.on('connect', () => {
+      console.log('✅ WebSocket connected:', socket.id);
+    });
+  </script>
+</body>
+</html>

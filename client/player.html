@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LichtBlick - Mitspielen</title>
+  <link rel="stylesheet" href="/css/player.css?v=2">
+</head>
+<body>
+  <!-- Session Restore Banner -->
+  <div id="restore-banner" class="restore-banner hidden">
+    <div class="restore-content">
+      <p>⚠️ Verbindung verloren</p>
+      <button id="restore-btn" class="btn btn-primary">Session wiederherstellen</button>
+    </div>
+  </div>
+
+  <!-- Login Screen -->
+  <div id="login-screen" class="screen active">
+    <div class="container">
+      <h1>🔦 LichtBlick</h1>
+      <p>Gib deinen Namen ein um mitzuspielen:</p>
+      
+      <form id="login-form">
+        <input 
+          type="text" 
+          id="player-name" 
+          placeholder="Dein Name" 
+          minlength="2" 
+          maxlength="20" 
+          required
+          autocomplete="off"
+        >
+        <button type="submit" class="btn btn-primary">Beitreten</button>
+      </form>
+      
+      <div id="login-error" class="error-message hidden"></div>
+      <div id="connection-status" class="status-indicator"></div>
+    </div>
+  </div>
+
+  <!-- Lobby Screen -->
+  <div id="lobby-screen" class="screen">
+    <div class="container">
+      <div class="screen-header">
+        <h1>🎯 Warte auf Spielstart...</h1>
+        <button id="leave-game-lobby" class="btn btn-danger btn-small">Spiel verlassen</button>
+      </div>
+      <p id="player-info">Hallo <strong id="player-name-display"></strong>!</p>
+      
+      <div class="lobby-info">
+        <div class="stat-box">
+          <div class="stat-value" id="lobby-player-count">0</div>
+          <div class="stat-label">Spieler</div>
+        </div>
+      </div>
+      
+      <div class="loading-spinner">
+        <div class="spinner"></div>
+        <p>Gleich geht's los!</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Screen -->
+  <div id="game-screen" class="screen">
+    <div class="container">
+      <div class="screen-header">
+        <span class="player-name-display" id="game-player-name">Spieler</span>
+        <button id="leave-game-playing" class="btn btn-danger btn-small">Spiel verlassen</button>
+      </div>
+      <div class="game-header">
+        <div class="score-display">
+          <span class="score-label">Deine Punkte:</span>
+          <span class="score-value" id="player-score">0</span>
+        </div>
+        <div class="rank-display" id="player-rank"></div>
+      </div>
+
+      <div id="word-list-container">
+        <div class="search-box">
+          <input 
+            type="text" 
+            id="word-search" 
+            placeholder="🔍 Suche..."
+            autocomplete="off"
+          >
+        </div>
+
+        <div id="word-list" class="word-list"></div>
+      </div>
+
+      <!-- Reveal Result View (shown after image reveal) -->
+      <div id="reveal-result" class="reveal-result hidden">
+        <div class="reveal-card correct-answer-card">
+          <div class="reveal-label">Richtige Antwort</div>
+          <div class="reveal-value" id="reveal-correct-answer">-</div>
+        </div>
+        
+        <div class="reveal-card your-answer-card" id="your-answer-card">
+          <div class="reveal-label">Deine Antwort</div>
+          <div class="reveal-value" id="reveal-your-answer">-</div>
+          <div class="reveal-status" id="reveal-status"></div>
+        </div>
+        
+        <div class="reveal-card points-card">
+          <div class="reveal-label">Punkte diese Runde</div>
+          <div class="reveal-value" id="reveal-round-points">0</div>
+        </div>
+        
+        <div class="reveal-waiting">
+          <div class="spinner"></div>
+          <p>Warte auf nächstes Bild...</p>
+        </div>
+      </div>
+
+      <div class="action-buttons">
+        <button id="submit-answer-btn" class="submit-btn" disabled>
+          Wort auswählen
+        </button>
+      </div>
+
+      <div id="answer-feedback" class="feedback-message hidden"></div>
+    </div>
+  </div>
+
+  <!-- Result Screen -->
+  <div id="result-screen" class="screen">
+    <div class="container">
+      <h1>🏆 Spiel beendet!</h1>
+      
+      <div class="final-stats">
+        <div class="stat-box">
+          <div class="stat-value" id="final-score">0</div>
+          <div class="stat-label">Punkte</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" id="final-rank">-</div>
+          <div class="stat-label">Platzierung</div>
+        </div>
+      </div>
+
+      <div id="final-leaderboard" class="leaderboard"></div>
+
+      <p class="thank-you">Vielen Dank fürs Mitspielen! 🎉</p>
+    </div>
+  </div>
+
+  <!-- Leaderboard Overlay -->
+  <div id="leaderboard-overlay" class="overlay hidden">
+    <div class="overlay-content">
+      <h2>🏆 Leaderboard</h2>
+      <div id="leaderboard-list" class="leaderboard"></div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/socket-adapter.js?v=2"></script>
+  <script src="/js/player.js?v=2"></script>
+</body>
+</html>

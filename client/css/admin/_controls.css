@@ -1,0 +1,248 @@
+/**
+ * Control Bar Styles
+ * Bottom control strip with game action buttons
+ */
+
+.control-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-lg);
+  height: 100%;
+  padding: 0 var(--spacing-lg);
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Control Groups */
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.control-group-divider {
+  width: 1px;
+  height: 40px;
+  background: var(--color-border);
+  margin: 0 var(--spacing-md);
+}
+
+/* Phase Controls */
+.phase-controls {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+/* Main Game Buttons - Extra Large */
+.btn-game {
+  min-width: 140px;
+  height: 56px;
+  padding: 0 var(--spacing-xl);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Reveal Button - Primary action */
+.btn-reveal {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+  color: white;
+  border: none;
+  box-shadow: var(--shadow-md), 0 4px 0 var(--color-primary-dark);
+}
+
+.btn-reveal:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg), 0 6px 0 var(--color-primary-dark);
+}
+
+.btn-reveal:active {
+  transform: translateY(2px);
+  box-shadow: var(--shadow-sm), 0 2px 0 var(--color-primary-dark);
+}
+
+/* Buzz Button - Warning color */
+.btn-buzz {
+  background: linear-gradient(135deg, var(--color-warning), var(--color-warning-dark));
+  color: var(--color-text);
+  border: none;
+  box-shadow: var(--shadow-md), 0 4px 0 var(--color-warning-dark);
+}
+
+.btn-buzz:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg), 0 6px 0 var(--color-warning-dark);
+}
+
+.btn-buzz:active {
+  transform: translateY(2px);
+  box-shadow: var(--shadow-sm), 0 2px 0 var(--color-warning-dark);
+}
+
+/* Next Round Button - Success */
+.btn-next-round {
+  background: linear-gradient(135deg, var(--color-success), var(--color-success-dark));
+  color: white;
+  border: none;
+  box-shadow: var(--shadow-md), 0 4px 0 var(--color-success-dark);
+}
+
+.btn-next-round:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg), 0 6px 0 var(--color-success-dark);
+}
+
+.btn-next-round:active {
+  transform: translateY(2px);
+  box-shadow: var(--shadow-sm), 0 2px 0 var(--color-success-dark);
+}
+
+/* Keyboard Shortcut Hint */
+.btn-game .shortcut {
+  position: absolute;
+  bottom: 4px;
+  right: 8px;
+  font-size: var(--font-size-xs);
+  opacity: 0.6;
+  font-weight: normal;
+}
+
+/* Player Scoring Section */
+.scoring-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.active-player-display {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-border);
+}
+
+.active-player-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.active-player-name {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+  max-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.active-player-none {
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+
+/* Score Adjustment Buttons */
+.score-buttons {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.btn-score {
+  width: 48px;
+  height: 48px;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-border);
+  background: var(--color-bg);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-score-plus {
+  color: var(--color-success);
+}
+
+.btn-score-plus:hover {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: white;
+}
+
+.btn-score-minus {
+  color: var(--color-danger);
+}
+
+.btn-score-minus:hover {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: white;
+}
+
+/* Timer Display */
+.timer-display {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  font-family: 'Courier New', monospace;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-muted);
+  min-width: 80px;
+  justify-content: center;
+}
+
+.timer-display.running {
+  color: var(--color-warning);
+}
+
+.timer-display.urgent {
+  color: var(--color-danger);
+  animation: pulse-urgent 0.5s ease-in-out infinite;
+}
+
+@keyframes pulse-urgent {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Disabled States */
+.btn-game:disabled,
+.btn-score:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* === Responsive === */
+@media (max-width: 1200px) {
+  .btn-game {
+    min-width: 120px;
+    height: 48px;
+    font-size: var(--font-size-base);
+  }
+  
+  .control-group-divider {
+    margin: 0 var(--spacing-sm);
+  }
+}

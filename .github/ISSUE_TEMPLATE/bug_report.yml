@@ -1,0 +1,110 @@
+name: Bug Report
+description: Melde einen Bug oder Fehler
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke, dass du einen Bug meldest! Bitte fülle die folgenden Felder aus.
+        
+        **Hinweis:** Prüfe erst, ob der Bug bereits in `docs/ANDOCK_PLAN_V4.md` dokumentiert ist.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Betroffene Komponente
+      options:
+        - Admin UI
+        - Beamer Display
+        - Player Interface
+        - Backend/Server
+        - WebSocket
+        - Database
+        - Sonstiges
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Schweregrad
+      options:
+        - 🔴 Kritisch (Feature nicht nutzbar)
+        - 🟡 Wichtig (Workaround möglich)
+        - 🟢 Niedrig (Kosmetisch/UX)
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Beschreibung
+      description: Was ist das Problem?
+      placeholder: "Spotlight Canvas bewegt sich nicht mit dem Cursor..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Schritte zur Reproduktion
+      description: Wie kann man den Bug nachvollziehen?
+      placeholder: |
+        1. Admin öffnen
+        2. Bild auswählen
+        3. Mit Maus über Canvas bewegen
+        4. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Erwartetes Verhalten
+      description: Was sollte passieren?
+      placeholder: "Spotlight sollte dem Cursor folgen..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Tatsächliches Verhalten
+      description: Was passiert stattdessen?
+      placeholder: "Spotlight bewegt sich nicht, bleibt statisch..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Falls hilfreich, Screenshots oder Videos anhängen
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Konsolen-Logs / Fehler
+      description: Browser-Konsole (F12) oder Server-Logs (server/logs/)
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Welche Version nutzt du?
+      placeholder: "v3.0.0"
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser / Node.js Version
+      description: Falls relevant (z.B. Chrome 120, Node.js 20.10.0)
+      placeholder: "Chrome 120.0.6099.130"
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Zusätzlicher Kontext
+      description: Weitere Informationen, die helfen könnten

@@ -1,0 +1,194 @@
+/**
+ * Footer Bar Styles - 2-Row Layout
+ */
+
+.app-footer {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-elevated);
+  border-top: 1px solid var(--color-border);
+}
+
+/* Footer Row */
+.footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-sm) var(--spacing-lg);
+}
+
+/* First Row - Controls */
+.footer-controls {
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.control-group {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.control-group-divider {
+  width: 1px;
+  height: 40px;
+  background: var(--color-border);
+  margin: 0 var(--spacing-md);
+}
+
+/* Game Buttons */
+.btn-game {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  min-width: 140px;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+  border: 2px solid;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-game:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-start {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: white;
+}
+
+.btn-start:hover:not(:disabled) {
+  background: var(--color-success-hover);
+}
+
+.btn-reveal {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+}
+
+.btn-reveal:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.btn-next-round {
+  background: var(--color-warning);
+  border-color: var(--color-warning);
+  color: white;
+}
+
+.btn-next-round:hover:not(:disabled) {
+  background: var(--color-warning-hover);
+}
+
+.btn-end {
+  background: transparent;
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.btn-end:hover:not(:disabled) {
+  background: var(--color-danger);
+  color: white;
+}
+
+/* Footer Progress in Controls Row */
+.footer-controls .footer-progress {
+  margin-left: auto;
+  max-width: 200px;
+}
+
+.progress-bar {
+  height: 6px;
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-success));
+  border-radius: var(--radius-sm);
+  transition: width 0.3s ease;
+}
+
+.progress-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  text-align: center;
+  display: block;
+  margin-top: 2px;
+}
+
+/* Second Row - Shortcuts */
+.footer-shortcuts {
+  gap: var(--spacing-lg);
+  padding: var(--spacing-xs) var(--spacing-lg);
+  background: var(--color-bg);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.shortcut-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.shortcut-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 6px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  box-shadow: 0 1px 0 var(--color-border);
+}
+
+.shortcut-action {
+  color: var(--color-text-muted);
+}
+
+.shortcut-divider {
+  color: var(--color-border);
+}
+
+/* === Responsive === */
+@media (max-width: 1200px) {
+  .footer-shortcuts {
+    display: none;
+  }
+  
+  .footer-controls .footer-progress {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .footer-controls {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .control-group-divider {
+    display: none;
+  }
+  
+  .btn-game {
+    min-width: 100px;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-size-sm);
+  }
+}
