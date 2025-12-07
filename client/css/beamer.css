@@ -226,12 +226,16 @@ body {
   background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
   align-items: center;
   justify-content: center;
+  /* Background will be replaced with end image if set via JS */
 }
 
 .result-content {
   width: 90%;
   max-width: 1200px;
   animation: fadeIn 1s ease-in;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .result-title {
@@ -239,13 +243,18 @@ body {
   text-align: center;
   margin-bottom: 2rem;
   text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  /* Semi-transparent background for better readability over end image */
+  background: rgba(0, 0, 0, 0.5);
+  padding: 1rem 2rem;
+  border-radius: 20px;
 }
 
 .leaderboard {
-  background: rgba(255,255,255,0.95);
+  background: rgba(255,255,255,0.85);
   border-radius: 20px;
   padding: 2rem;
   box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  backdrop-filter: blur(10px);
 }
 
 .leaderboard-item {
@@ -291,6 +300,10 @@ body {
   font-size: 2rem;
   margin-top: 2rem;
   text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  /* Semi-transparent background for better readability over end image */
+  background: rgba(0, 0, 0, 0.5);
+  padding: 1rem 2rem;
+  border-radius: 20px;
 }
 
 /* QR Code Overlay */
