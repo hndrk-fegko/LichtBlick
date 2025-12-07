@@ -348,6 +348,29 @@ function setupEventListeners() {
   // Sidebar
   document.getElementById('sidebar-close')?.addEventListener('click', closeSidebar);
   
+  // Bug-008 fix: Use event delegation for context menu to avoid render lag
+  const imagePool = document.getElementById('image-pool');
+  if (imagePool) {
+    imagePool.addEventListener('contextmenu', (e) => {
+      const poolItem = e.target.closest('.pool-item');
+      if (poolItem) {
+        showContextMenu(e, poolItem);
+      }
+    });
+    
+    imagePool.addEventListener('dblclick', (e) => {
+      const poolItem = e.target.closest('.pool-item');
+      if (poolItem) {
+        const id = parseInt(poolItem.dataset.id);
+        const img = state.imagePool.find(i => i.id === id);
+        const inGame = state.gameImages.some(g => g.image_id === id);
+        if (!inGame && !img?.is_start_image && !img?.is_end_image) {
+          addImageToGame(id);
+        }
+      }
+    });
+  }
+  
   // Filter buttons
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -424,9 +447,9 @@ function setupSocketListeners() {
     const oldCount = state.adminSessionCount;
     state.adminSessionCount = data.count || 1;
     updateAdminSessionBadge();
-    // Only show toast warning when count increases
+    // Only show toast warning when count increases (Bug-015 fix)
     if (state.adminSessionCount > oldCount && state.adminSessionCount > 1) {
-      updateAdminSessionWarning();
+      toast(`⚠️ ${state.adminSessionCount} Admin-Sessions aktiv! Änderungen können kollidieren.`, 'warning');
     }
   });
   
@@ -641,24 +664,9 @@ function stopPinTimer() {
 // MULTI-ADMIN WARNING
 // ============================================================
 function updateAdminSessionWarning() {
-  const badge = document.getElementById('admin-session-badge');
-  const countEl = badge?.querySelector('.admin-session-count');
-  
-  // Show warning if multiple admin sessions are active
-  if (state.adminSessionCount > 1) {
-    toast(`⚠️ ${state.adminSessionCount} Admin-Sessions aktiv! Änderungen können kollidieren.`, 'warning');
-    
-    // Update and show badge
-    if (badge) {
-      if (countEl) countEl.textContent = state.adminSessionCount;
-      badge.classList.remove('hidden');
-    }
-  } else {
-    // Hide badge if only one session
-    if (badge) {
-      badge.classList.add('hidden');
-    }
-  }
+  // Bug-015 fix: Don't call toast here, it's called from the event handler
+  // This function just updates the badge
+  updateAdminSessionBadge();
 }
 
 function updateAdminSessionBadge() {
@@ -847,8 +855,8 @@ function renderStripCardWithInput(item, type, isPlayed, orderNum = null, isCurre
   const inputDisabled = isPlayed || type !== 'game';
   const inputClass = isPlayed ? 'locked' : '';
   
-  // Show delete button?
-  const showDelete = isGame && !isPlayed;
+  // Show delete button? (Bug-012 fix: don't show if currently playing)
+  const showDelete = isGame && !isPlayed && !isCurrentlyPlaying;
   
   return `
     <div class="game-card-container" data-id="${item.id || item.image_id}" data-type="${type}">
@@ -1421,7 +1429,23 @@ async function updateGameImageAnswer(id, answer) {
 }
 
 async function removeGameImage(id) {
+  // Bug-010 fix: Reset selection if deleted image was selected
+  const wasSelected = state.gameImages.find(g => g.id === id)?.id === state.selectedGameImageId;
+  
   await authFetch(`/api/game-images/${id}`, { method: 'DELETE' });
+  
+  if (wasSelected) {
+    // Reset to next unplayed image after deletion
+    const nextUnplayed = state.gameImages.find(g => g.id !== id && !g.is_played);
+    if (nextUnplayed) {
+      state.selectedGameImageId = nextUnplayed.id;
+    } else {
+      state.selectedGameImageId = null;
+      state.canvasImage = null;
+      drawEmptyState();
+    }
+  }
+  
   loadImages();
 }
 
@@ -1502,19 +1526,7 @@ function renderSidebar() {
       `;
     }).join('');
     
-    // Add event listeners
-    poolContainer.querySelectorAll('.pool-item').forEach(item => {
-      item.addEventListener('contextmenu', (e) => showContextMenu(e, item));
-      item.addEventListener('dblclick', () => {
-        const id = parseInt(item.dataset.id);
-        const img = state.imagePool.find(i => i.id === id);
-        // Only add if not already in game and not start/end
-        const inGame = state.gameImages.some(g => g.image_id === id);
-        if (!inGame && !img?.is_start_image && !img?.is_end_image) {
-          addImageToGame(id);
-        }
-      });
-    });
+    // Event listeners are now delegated from the parent (Bug-008 fix)
   }
   
   // Update stats
@@ -2262,16 +2274,30 @@ function closeAllModals() {
 }
 
 function selectPrevImage() {
-  const currentIdx = state.gameImages.findIndex(g => g.id === state.selectedGameImageId);
+  // Bug-011 fix: Only select unplayed images
+  const unplayedImages = state.gameImages.filter(g => !g.is_played);
+  if (unplayedImages.length === 0) return;
+  
+  const currentIdx = unplayedImages.findIndex(g => g.id === state.selectedGameImageId);
   if (currentIdx > 0) {
-    selectGameImage(state.gameImages[currentIdx - 1].id);
+    selectGameImage(unplayedImages[currentIdx - 1].id);
+  } else if (currentIdx === -1 && unplayedImages.length > 0) {
+    // If current selection is not in unplayed list, select first unplayed
+    selectGameImage(unplayedImages[0].id);
   }
 }
 
 function selectNextImage() {
-  const currentIdx = state.gameImages.findIndex(g => g.id === state.selectedGameImageId);
-  if (currentIdx < state.gameImages.length - 1) {
-    selectGameImage(state.gameImages[currentIdx + 1].id);
+  // Bug-011 fix: Only select unplayed images
+  const unplayedImages = state.gameImages.filter(g => !g.is_played);
+  if (unplayedImages.length === 0) return;
+  
+  const currentIdx = unplayedImages.findIndex(g => g.id === state.selectedGameImageId);
+  if (currentIdx >= 0 && currentIdx < unplayedImages.length - 1) {
+    selectGameImage(unplayedImages[currentIdx + 1].id);
+  } else if (currentIdx === -1 && unplayedImages.length > 0) {
+    // If current selection is not in unplayed list, select first unplayed
+    selectGameImage(unplayedImages[0].id);
   }
 }
 
