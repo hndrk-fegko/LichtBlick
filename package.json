@@ -1,0 +1,26 @@
+{
+  "name": "lichtblick",
+  "version": "3.0.0",
+  "description": "LichtBlick - Multiplayer Game with Playwright E2E Tests",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report",
+    "test:e2e:chromium": "playwright test --project=chromium",
+    "test:e2e:firefox": "playwright test --project=firefox",
+    "test:e2e:webkit": "playwright test --project=webkit"
+  },
+  "keywords": [
+    "multiplayer",
+    "game",
+    "e2e-testing",
+    "playwright"
+  ],
+  "author": "FeG Nahude",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  }
+}
