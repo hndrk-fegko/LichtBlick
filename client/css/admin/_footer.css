@@ -105,10 +105,12 @@
 }
 
 .progress-bar {
-  height: 6px;
+  height: 8px;
   background: var(--color-bg);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   overflow: hidden;
+  min-width: 120px;
 }
 
 .progress-fill {
@@ -116,6 +118,7 @@
   background: linear-gradient(90deg, var(--color-primary), var(--color-success));
   border-radius: var(--radius-sm);
   transition: width 0.3s ease;
+  min-width: 2px; /* Bug-013 fix: Always show a small indicator */
 }
 
 .progress-label {

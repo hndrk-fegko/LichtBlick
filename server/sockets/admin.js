@@ -271,6 +271,7 @@ module.exports = (io, socket) => {
     });
     if (broadcastPhase) {
       io.to('players').emit('game:phase_change', { phase: broadcastPhase, imageId: image.id });
+      io.to('beamer').emit('game:phase_change', { phase: broadcastPhase, imageId: image.id });
     }
     return image;
   }
@@ -280,14 +281,14 @@ module.exports = (io, socket) => {
     if (!requireAdmin('admin:start_game', callback)) return;
     try {
       const game = db.getActiveGame();
-      if (!game) return callback({ success: false, message: 'No active game' });
+      if (!game) return callback && callback({ success: false, message: 'No active game' });
       db.updateGameStatus(game.id, 'playing');
       const image = loadAndBroadcastImage(imageId, 'playing');
-      if (!image) return callback({ success: false, message: 'Image not found' });
-      callback({ success: true });
+      if (!image) return callback && callback({ success: false, message: 'Image not found' });
+      callback && callback({ success: true });
     } catch (error) {
       logger.error('Start game failed', { error: error.message });
-      callback({ success: false, message: 'Failed to start game' });
+      callback && callback({ success: false, message: 'Failed to start game' });
     }
   });
 
@@ -310,14 +311,14 @@ module.exports = (io, socket) => {
     try {
       const game = db.getActiveGame();
       if (!game || game.status !== 'playing') {
-        return callback({ success: false, message: 'Game not running' });
+        return callback && callback({ success: false, message: 'Game not running' });
       }
       const image = loadAndBroadcastImage(imageId, 'playing');
-      if (!image) return callback({ success: false, message: 'Image not found' });
-      callback({ success: true });
+      if (!image) return callback && callback({ success: false, message: 'Image not found' });
+      callback && callback({ success: true });
     } catch (error) {
       logger.error('Next image failed', { error: error.message });
-      callback({ success: false, message: 'Failed to load next image' });
+      callback && callback({ success: false, message: 'Failed to load next image' });
     }
   });
 
@@ -326,7 +327,7 @@ module.exports = (io, socket) => {
     if (!requireAdmin('admin:end_game', callback)) return;
     try {
       const game = db.getActiveGame();
-      if (!game) return callback({ success: false, message: 'No active game' });
+      if (!game) return callback && callback({ success: false, message: 'No active game' });
       db.updateGameStatus(game.id, 'ended');
       io.to('players').emit('game:phase_change', { phase: 'ended' });
       io.to('beamer').emit('game:phase_change', { phase: 'ended' });
@@ -336,10 +337,10 @@ module.exports = (io, socket) => {
         topPlayers: leaderboard.map(p => ({ name: p.name, score: p.score, rank: p.rank })),
         totalPlayers: leaderboard.length
       });
-      callback({ success: true });
+      callback && callback({ success: true });
     } catch (error) {
       logger.error('End game failed', { error: error.message });
-      callback({ success: false, message: 'Failed to end game' });
+      callback && callback({ success: false, message: 'Failed to end game' });
     }
   });
 
@@ -373,10 +374,13 @@ module.exports = (io, socket) => {
   });
 
   // Admin toggles QR code
-  socket.on('admin:toggle_qr', ({ enabled }) => {
-    if (!socket.rooms.has('admin')) return;
-    const qrEnabled = !!enabled;
-    logger.info('Admin toggled QR', { enabled: qrEnabled });
+  socket.on('admin:toggle_qr', ({ visible }, callback) => {
+    if (!socket.rooms.has('admin')) {
+      if (callback) callback({ success: false, message: 'Nicht authentifiziert' });
+      return;
+    }
+    const qrEnabled = !!visible;
+    logger.info('Admin toggled QR', { visible: qrEnabled });
     db.setConfig('qrEnabled', qrEnabled);
     const host = socket.handshake.headers.host;
     const pinObj = db.getPin();
@@ -386,6 +390,12 @@ module.exports = (io, socket) => {
       visible: qrEnabled, // backward compatibility
       url: joinUrl
     });
+    if (callback) {
+      callback({ 
+        success: true, 
+        message: qrEnabled ? 'QR-Code eingeblendet' : 'QR-Code ausgeblendet' 
+      });
+    }
   });
 
   // Admin generate PIN

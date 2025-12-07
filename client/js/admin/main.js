@@ -60,6 +60,10 @@ const state = {
 // Throttle for spotlight updates
 const SPOTLIGHT_THROTTLE = 50;
 
+// Scroll animation constants
+const SMOOTH_SCROLL_DURATION = 350; // ms
+const SCROLL_TOLERANCE = 1; // px for detecting scroll end
+
 // ============================================================
 // DOM REFERENCES
 // ============================================================
@@ -309,7 +313,7 @@ function setupEventListeners() {
   
   // Canvas Events
   dom.canvas?.addEventListener('mousedown', startDrawing);
-  dom.canvas?.addEventListener('mousemove', draw);
+  dom.canvas?.addEventListener('mousemove', handleMouseMove);
   dom.canvas?.addEventListener('mouseup', stopDrawing);
   dom.canvas?.addEventListener('mouseleave', stopDrawing);
   dom.canvas?.addEventListener('click', handleCanvasClick);
@@ -347,6 +351,29 @@ function setupEventListeners() {
   
   // Sidebar
   document.getElementById('sidebar-close')?.addEventListener('click', closeSidebar);
+  
+  // Bug-008 fix: Use event delegation for context menu to avoid render lag
+  const imagePool = document.getElementById('image-pool');
+  if (imagePool) {
+    imagePool.addEventListener('contextmenu', (e) => {
+      const poolItem = e.target.closest('.pool-item');
+      if (poolItem) {
+        showContextMenu(e, poolItem);
+      }
+    });
+    
+    imagePool.addEventListener('dblclick', (e) => {
+      const poolItem = e.target.closest('.pool-item');
+      if (poolItem) {
+        const id = parseInt(poolItem.dataset.id);
+        const img = state.imagePool.find(i => i.id === id);
+        const inGame = state.gameImages.some(g => g.image_id === id);
+        if (!inGame && !img?.is_start_image && !img?.is_end_image) {
+          addImageToGame(id);
+        }
+      }
+    });
+  }
   
   // Filter buttons
   document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -390,7 +417,7 @@ function setupEventListeners() {
 // ============================================================
 function setupSocketListeners() {
   if (!window.socketAdapter) {
-    console.error('Socket adapter not found!');
+    toast('Socket-Verbindung konnte nicht hergestellt werden', 'error');
     return;
   }
   
@@ -424,9 +451,9 @@ function setupSocketListeners() {
     const oldCount = state.adminSessionCount;
     state.adminSessionCount = data.count || 1;
     updateAdminSessionBadge();
-    // Only show toast warning when count increases
+    // Only show toast warning when count increases (Bug-015 fix)
     if (state.adminSessionCount > oldCount && state.adminSessionCount > 1) {
-      updateAdminSessionWarning();
+      toast(`⚠️ ${state.adminSessionCount} Admin-Sessions aktiv! Änderungen können kollidieren.`, 'warning');
     }
   });
   
@@ -641,24 +668,9 @@ function stopPinTimer() {
 // MULTI-ADMIN WARNING
 // ============================================================
 function updateAdminSessionWarning() {
-  const badge = document.getElementById('admin-session-badge');
-  const countEl = badge?.querySelector('.admin-session-count');
-  
-  // Show warning if multiple admin sessions are active
-  if (state.adminSessionCount > 1) {
-    toast(`⚠️ ${state.adminSessionCount} Admin-Sessions aktiv! Änderungen können kollidieren.`, 'warning');
-    
-    // Update and show badge
-    if (badge) {
-      if (countEl) countEl.textContent = state.adminSessionCount;
-      badge.classList.remove('hidden');
-    }
-  } else {
-    // Hide badge if only one session
-    if (badge) {
-      badge.classList.add('hidden');
-    }
-  }
+  // Bug-015 fix: Don't call toast here, it's called from the event handler
+  // This function just updates the badge
+  updateAdminSessionBadge();
 }
 
 function updateAdminSessionBadge() {
@@ -718,7 +730,7 @@ async function loadImages() {
     updateGameControlButtons();
     
   } catch (error) {
-    console.error('Failed to load images:', error);
+    toast('Fehler beim Laden der Bilder', 'error');
   }
 }
 
@@ -742,14 +754,10 @@ function renderGameStrip() {
   
   let html = '';
   
-  // Start Image (if set and not same as end)
-  if (startImage && !startAndEndSame) {
+  // Bug-006 fix: Show start and end separately even if they're the same image
+  // Start Image (always show if set)
+  if (startImage) {
     html += renderStripCardWithInput(startImage, 'start', false);
-  }
-  
-  // Start+End combined (if same image)
-  if (startAndEndSame) {
-    html += renderStripCardWithInput(startImage, 'start-end', false);
   }
   
   // Game Images (sorted: played first, then unplayed)
@@ -766,8 +774,9 @@ function renderGameStrip() {
     html += renderStripCardWithInput(gi, 'game', gi.is_played, index + 1, isCurrentlyPlaying);
   });
   
-  // End Image (if set and not same as start)
-  if (endImage && !startAndEndSame) {
+  // Bug-006 fix: Always show end image if set, even if same as start
+  // End Image (always show if set)
+  if (endImage) {
     html += renderStripCardWithInput(endImage, 'end', false);
   }
   
@@ -811,6 +820,9 @@ function renderGameStrip() {
     const currentCard = dom.stripScroll.querySelector(`.game-card-container[data-id="${state.selectedGameImageId}"]`);
     currentCard?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
   }
+  
+  // Bug-014 fix: Update scroll button states
+  updateScrollButtons();
 }
 
 function renderStripCardWithInput(item, type, isPlayed, orderNum = null, isCurrentlyPlaying = false) {
@@ -847,8 +859,8 @@ function renderStripCardWithInput(item, type, isPlayed, orderNum = null, isCurre
   const inputDisabled = isPlayed || type !== 'game';
   const inputClass = isPlayed ? 'locked' : '';
   
-  // Show delete button?
-  const showDelete = isGame && !isPlayed;
+  // Show delete button? (Bug-012 fix: don't show if currently playing)
+  const showDelete = isGame && !isPlayed && !isCurrentlyPlaying;
   
   return `
     <div class="game-card-container" data-id="${item.id || item.image_id}" data-type="${type}">
@@ -899,8 +911,8 @@ function selectGameImage(id) {
 // CANVAS & SPOTLIGHT
 // ============================================================
 function loadImageToCanvas(imageId) {
-  const poolImage = state.imagePool.find(img => img.id == imageId);
-  const gameImage = state.gameImages.find(gi => gi.image_id == imageId);
+  const poolImage = state.imagePool.find(img => img.id === imageId);
+  const gameImage = state.gameImages.find(gi => gi.image_id === imageId);
   const imageUrl = poolImage?.url || gameImage?.url;
   
   if (!imageUrl) return;
@@ -910,6 +922,10 @@ function loadImageToCanvas(imageId) {
     state.canvasImage = img;
     state.spotlightClicks = []; // Reset spotlights for new image
     redrawCanvas();
+  };
+  img.onerror = () => {
+    toast('Fehler beim Laden des Bildes', 'error');
+    drawEmptyState();
   };
   img.src = imageUrl;
 }
@@ -982,6 +998,15 @@ function startDrawing(e) {
   if (!state.spotlightEnabled || !state.canvasImage) return;
   state.isDrawing = true;
   draw(e);
+}
+
+function handleMouseMove(e) {
+  // Only draw when actively dragging spotlight
+  if (state.isDrawing) {
+    draw(e);
+  }
+  // Note: Preview cursor without drawing was considered but not needed
+  // The static spotlight circles on click are sufficient for user feedback
 }
 
 function draw(e) {
@@ -1409,7 +1434,23 @@ async function updateGameImageAnswer(id, answer) {
 }
 
 async function removeGameImage(id) {
+  // Bug-010 fix: Reset selection if deleted image was selected
+  const wasSelected = state.gameImages.find(g => g.id === id)?.id === state.selectedGameImageId;
+  
   await authFetch(`/api/game-images/${id}`, { method: 'DELETE' });
+  
+  if (wasSelected) {
+    // Reset to next unplayed image after deletion
+    const nextUnplayed = state.gameImages.find(g => g.id !== id && !g.is_played);
+    if (nextUnplayed) {
+      state.selectedGameImageId = nextUnplayed.id;
+    } else {
+      state.selectedGameImageId = null;
+      state.canvasImage = null;
+      drawEmptyState();
+    }
+  }
+  
   loadImages();
 }
 
@@ -1490,19 +1531,7 @@ function renderSidebar() {
       `;
     }).join('');
     
-    // Add event listeners
-    poolContainer.querySelectorAll('.pool-item').forEach(item => {
-      item.addEventListener('contextmenu', (e) => showContextMenu(e, item));
-      item.addEventListener('dblclick', () => {
-        const id = parseInt(item.dataset.id);
-        const img = state.imagePool.find(i => i.id === id);
-        // Only add if not already in game and not start/end
-        const inGame = state.gameImages.some(g => g.image_id === id);
-        if (!inGame && !img?.is_start_image && !img?.is_end_image) {
-          addImageToGame(id);
-        }
-      });
-    });
+    // Event listeners are now delegated from the parent (Bug-008 fix)
   }
   
   // Update stats
@@ -1541,11 +1570,15 @@ async function addAllFreeImages() {
       });
       if (res.ok) added++;
     } catch (error) {
-      console.error('Failed to add image:', error);
+      // Silently continue with other images
     }
   }
   
-  toast(`${added} Bild(er) hinzugefügt`, 'success');
+  if (added > 0) {
+    toast(`${added} Bild(er) hinzugefügt`, 'success');
+  } else {
+    toast('Keine Bilder konnten hinzugefügt werden', 'warning');
+  }
   loadImages();
 }
 
@@ -1631,6 +1664,13 @@ async function removeImageFromGame(imageId) {
 }
 
 async function addImageToGame(imageId) {
+  // Bug-007 fix: Prevent adding start/end images to game
+  const img = state.imagePool.find(i => i.id === imageId);
+  if (img && (img.is_start_image || img.is_end_image)) {
+    toast('Bild kann nicht hinzugefügt werden: Es ist bereits als Start- oder End-Bild gesetzt', 'warning');
+    return;
+  }
+  
   try {
     const res = await authFetch('/api/game-images', {
       method: 'POST',
@@ -1641,13 +1681,22 @@ async function addImageToGame(imageId) {
     if (res.ok) {
       toast('Bild zum Spiel hinzugefügt', 'success');
       loadImages();
+    } else {
+      toast('Fehler beim Hinzufügen des Bildes', 'error');
     }
   } catch (error) {
-    console.error('Failed to add image:', error);
+    toast('Fehler beim Hinzufügen des Bildes', 'error');
   }
 }
 
 async function setSpecialImage(imageId, type) {
+  // Bug-007 fix: Prevent setting start/end if image is in game
+  const inGame = state.gameImages.some(g => g.image_id === imageId);
+  if (inGame) {
+    toast('Bild kann nicht als Start/End gesetzt werden: Es ist bereits im Spiel', 'warning');
+    return;
+  }
+  
   try {
     const endpoint = `/api/images/${imageId}/set-${type}`;
     const res = await authFetch(endpoint, {
@@ -1662,7 +1711,6 @@ async function setSpecialImage(imageId, type) {
       toast(data.message || 'Fehler', 'error');
     }
   } catch (error) {
-    console.error('Failed to set special image:', error);
     toast('Fehler beim Setzen des Bildes', 'error');
   }
 }
@@ -1681,7 +1729,6 @@ async function clearImageRole(imageId) {
       toast(data.message || 'Fehler', 'error');
     }
   } catch (error) {
-    console.error('Failed to clear image role:', error);
     toast('Fehler beim Entfernen der Rolle', 'error');
   }
 }
@@ -1709,7 +1756,7 @@ async function updateImageAnswer(imageId, answer) {
     
     renderSidebar();
   } catch (error) {
-    console.error('Failed to update answer:', error);
+    toast('Fehler beim Aktualisieren der Antwort', 'error');
   }
 }
 
@@ -1719,7 +1766,7 @@ async function deleteImage(imageId) {
     toast('Bild gelöscht', 'success');
     loadImages();
   } catch (error) {
-    console.error('Failed to delete image:', error);
+    toast('Fehler beim Löschen des Bildes', 'error');
   }
 }
 
@@ -1728,14 +1775,50 @@ async function deleteImage(imageId) {
 // ============================================================
 function setupUpload() {
   const input = document.getElementById('image-upload');
+  const uploadLabel = document.querySelector('.upload-label');
   const progress = document.getElementById('upload-progress');
   const progressBar = document.getElementById('upload-progress-bar');
   const progressText = document.getElementById('upload-progress-text');
   
+  // File input change event
   input?.addEventListener('change', async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
     
+    await uploadFiles(files);
+    input.value = '';
+  });
+  
+  // Drag & Drop on upload label
+  if (uploadLabel) {
+    uploadLabel.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadLabel.classList.add('drag-over');
+    });
+    
+    uploadLabel.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadLabel.classList.remove('drag-over');
+    });
+    
+    uploadLabel.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadLabel.classList.remove('drag-over');
+      
+      const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+      if (files.length === 0) {
+        toast('Keine Bild-Dateien gefunden', 'warning');
+        return;
+      }
+      
+      await uploadFiles(files);
+    });
+  }
+  
+  async function uploadFiles(files) {
     progress?.classList.remove('hidden');
     
     let uploaded = 0;
@@ -1751,7 +1834,7 @@ function setupUpload() {
         });
         uploaded++;
       } catch (error) {
-        console.error('Upload failed:', error);
+        // Continue with remaining files
       }
       
       const percent = Math.round((uploaded / files.length) * 100);
@@ -1760,10 +1843,9 @@ function setupUpload() {
     }
     
     progress?.classList.add('hidden');
-    input.value = '';
     toast(`${uploaded} Bild(er) hochgeladen`, 'success');
     loadImages();
-  });
+  }
 }
 
 // ============================================================
@@ -1835,7 +1917,7 @@ async function loadWordlist() {
       }
     }
   } catch (error) {
-    console.error('Failed to load wordlist:', error);
+    toast('Fehler beim Laden der Wortliste', 'warning');
   }
 }
 
@@ -1949,8 +2031,7 @@ async function loadScoringSettings() {
       }
     }
   } catch (error) {
-    console.error('Failed to load scoring settings:', error);
-    // Use defaults
+    // Use defaults on error
     const basePoints = document.getElementById('base-points');
     const speedEnabled = document.getElementById('speed-bonus-enabled');
     const speedPercent = document.getElementById('speed-bonus-percent');
@@ -2053,7 +2134,6 @@ async function saveSettings() {
       closeModal('settings-modal');
     }
   } catch (error) {
-    console.error('Save settings failed:', error);
     toast('Fehler beim Speichern', 'error');
   }
 }
@@ -2215,16 +2295,30 @@ function closeAllModals() {
 }
 
 function selectPrevImage() {
-  const currentIdx = state.gameImages.findIndex(g => g.id === state.selectedGameImageId);
+  // Bug-011 fix: Only select unplayed images
+  const unplayedImages = state.gameImages.filter(g => !g.is_played);
+  if (unplayedImages.length === 0) return;
+  
+  const currentIdx = unplayedImages.findIndex(g => g.id === state.selectedGameImageId);
   if (currentIdx > 0) {
-    selectGameImage(state.gameImages[currentIdx - 1].id);
+    selectGameImage(unplayedImages[currentIdx - 1].id);
+  } else if (currentIdx === -1 && unplayedImages.length > 0) {
+    // If current selection is not in unplayed list, select first unplayed
+    selectGameImage(unplayedImages[0].id);
   }
 }
 
 function selectNextImage() {
-  const currentIdx = state.gameImages.findIndex(g => g.id === state.selectedGameImageId);
-  if (currentIdx < state.gameImages.length - 1) {
-    selectGameImage(state.gameImages[currentIdx + 1].id);
+  // Bug-011 fix: Only select unplayed images
+  const unplayedImages = state.gameImages.filter(g => !g.is_played);
+  if (unplayedImages.length === 0) return;
+  
+  const currentIdx = unplayedImages.findIndex(g => g.id === state.selectedGameImageId);
+  if (currentIdx >= 0 && currentIdx < unplayedImages.length - 1) {
+    selectGameImage(unplayedImages[currentIdx + 1].id);
+  } else if (currentIdx === -1 && unplayedImages.length > 0) {
+    // If current selection is not in unplayed list, select first unplayed
+    selectGameImage(unplayedImages[0].id);
   }
 }
 
@@ -2238,7 +2332,28 @@ function showHelp() {
 function scrollStrip(amount) {
   if (dom.stripScroll) {
     dom.stripScroll.scrollBy({ left: amount, behavior: 'smooth' });
+    // Update button states after scroll animation completes
+    setTimeout(updateScrollButtons, SMOOTH_SCROLL_DURATION);
   }
+}
+
+// Bug-014 fix: Update scroll button disabled states
+function updateScrollButtons() {
+  if (!dom.stripScroll || !dom.stripNavLeft || !dom.stripNavRight) return;
+  
+  const { scrollLeft, scrollWidth, clientWidth } = dom.stripScroll;
+  const maxScroll = scrollWidth - clientWidth;
+  
+  // Disable left button if at start
+  dom.stripNavLeft.disabled = scrollLeft <= 0;
+  
+  // Disable right button if at end (with tolerance for rounding)
+  dom.stripNavRight.disabled = scrollLeft >= maxScroll - SCROLL_TOLERANCE;
+}
+
+// Add scroll event listener to update buttons in real-time
+if (dom.stripScroll) {
+  dom.stripScroll.addEventListener('scroll', updateScrollButtons);
 }
 
 // ============================================================

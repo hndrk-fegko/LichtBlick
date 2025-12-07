@@ -13,6 +13,7 @@ let spotlightClicks = []; // Fixierte Klick-Spotlights
 let currentMouseSpot = null; // Temporärer Maus-Spotlight
 let isRevealed = false; // Bild komplett aufgedeckt
 let currentCorrectAnswer = ''; // Richtige Antwort für Anzeige
+let endImageUrl = null; // End image URL for result screen background
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -33,8 +34,21 @@ function loadStartImage() {
       if (startImage) {
         showStartImage(startImage.url);
       }
+      
+      // Also load end image for result screen
+      const endImage = data.data.find(img => img.is_end_image);
+      if (endImage) {
+        cacheEndImage(endImage.url);
+      }
     })
     .catch(err => console.error('Failed to load start image:', err));
+}
+
+function cacheEndImage(url) {
+  // Store end image URL for later use (module-level variable)
+  if (url && typeof url === 'string') {
+    endImageUrl = url;
+  }
 }
 
 function showStartImage(url) {
@@ -67,6 +81,11 @@ function handleImageRolesChanged(data) {
     showStartImage(data.startImage.url);
   } else {
     hideStartImage();
+  }
+  
+  // Cache end image for result screen
+  if (data.endImage && data.endImage.url) {
+    cacheEndImage(data.endImage.url);
   }
 }
 
@@ -158,8 +177,31 @@ function handlePhaseChange(data) {
     }
   } else if (data.phase === 'ended') {
     showScreen('result');
+    applyEndImageBackground();
   } else {
     showScreen('lobby');
+  }
+}
+
+function applyEndImageBackground() {
+  const resultScreen = document.getElementById('result-screen');
+  if (!resultScreen) return; // Safety check
+  
+  if (endImageUrl && typeof endImageUrl === 'string') {
+    // Validate URL format (basic check for data URLs or http/https URLs)
+    const isValidUrl = endImageUrl.startsWith('data:image/') || 
+                       endImageUrl.startsWith('/') ||
+                       /^https?:\/\//.test(endImageUrl);
+    
+    if (isValidUrl) {
+      resultScreen.style.backgroundImage = `url(${CSS.escape(endImageUrl)})`;
+      resultScreen.style.backgroundSize = 'cover';
+      resultScreen.style.backgroundPosition = 'center';
+      resultScreen.style.backgroundRepeat = 'no-repeat';
+    }
+  } else {
+    // Fallback to gradient if no end image
+    resultScreen.style.backgroundImage = '';
   }
 }
 
