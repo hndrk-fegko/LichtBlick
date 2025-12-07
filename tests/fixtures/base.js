@@ -3,7 +3,9 @@
  * Provides authenticated contexts for tests
  */
 
-const { test as base, expect } = require('@playwright/test');
+const playwright = require('@playwright/test');
+const base = playwright.test;
+const expect = playwright.expect;
 const { getAdminToken } = require('../helpers/db-setup');
 
 /**

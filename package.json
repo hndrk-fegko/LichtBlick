@@ -21,6 +21,7 @@
   "author": "FeG Nahude",
   "license": "MIT",
   "devDependencies": {
-    "@playwright/test": "^1.40.0"
+    "@playwright/test": "^1.40.0",
+    "better-sqlite3": "^12.5.0"
   }
 }
