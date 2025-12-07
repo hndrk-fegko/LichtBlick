@@ -9,7 +9,7 @@ Diese Checkliste hilft beim Deployment auf ein Web-Hosting mit Node.js-Unterstü
 ### 1. Code-Bereinigung
 
 - [ ] **PowerShell Wrapper-Script entfernen/anpassen**
-  - `server/start-dev.ps1` - Nur für lokale Entwicklung, nicht für Produktion
+  - `scripts/start-dev.ps1` - Nur für lokale Entwicklung, nicht für Produktion
   - Auf Hosting-Plattform eigenen Process Manager nutzen (pm2, forever, etc.)
 
 - [ ] **package.json Scripts prüfen**

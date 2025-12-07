@@ -44,8 +44,8 @@
 
 ```bash
 # 1. Repository klonen
-git clone https://github.com/your-username/lichtblick.git
-cd lichtblick
+git clone https://github.com/hndrk-fegko/LichtBlick.git
+cd LichtBlick
 
 # 2. Dependencies installieren
 cd server
@@ -84,7 +84,7 @@ npm start
 ```
 lichtblick/
 ├── client/                    # Frontend (Vanilla JS + HTML5 Canvas)
-│   ├── admin-new.html        # Admin-Interface (Moderator)
+│   ├── admin.html            # Admin-Interface (Moderator)
 │   ├── beamer.html           # Beamer-Display (Projektion)
 │   ├── player.html           # Spieler-Interface (Smartphone)
 │   ├── css/                  # Modular aufgebautes CSS
@@ -98,6 +98,9 @@ lichtblick/
 │   ├── sockets/              # WebSocket Event Handlers
 │   ├── services/             # Business Logic (Scoring, etc.)
 │   └── utils/                # Helpers (Logger, Validation, etc.)
+├── scripts/                   # Build & Test Scripts
+│   ├── test-security.ps1     # Security Tests
+│   └── start-dev.ps1         # Development Server
 ├── data/                      # Runtime Data (Git-Ignored)
 │   ├── uploads/              # Hochgeladene Bilder
 │   └── lichtblick.db         # SQLite Database
@@ -107,7 +110,10 @@ lichtblick/
 │   ├── API_CONTRACT.md       # REST + WebSocket API
 │   ├── GAME_MECHANICS.md     # Spiellogik & Punktesystem
 │   ├── DATABASE_SCHEMA.md    # Datenbankstruktur
-│   └── ...                   # Weitere Docs (14 Dateien)
+│   ├── ANDOCK_PLAN.md        # Aktueller Implementierungsplan
+│   └── archive/              # Archivierte Versionen
+├── tests/                     # Playwright E2E Tests
+│   └── playwright.config.js  # Test-Konfiguration
 └── README.md                  # Diese Datei
 ```
 
@@ -212,7 +218,7 @@ MAX_FILES=50
 4. **Auth-Modal** nicht styled (erscheint als Text)
 5. **QR-Toggle** sendet immer `false`
 
-👉 **Details:** Siehe [`docs/ANDOCK_PLAN_V4.md`](docs/ANDOCK_PLAN_V4.md) für vollständige Bug-Liste
+👉 **Details:** Siehe [`docs/ANDOCK_PLAN.md`](docs/ANDOCK_PLAN.md) für vollständige Bug-Liste
 
 ### 🚧 Nächste Schritte
 
@@ -235,7 +241,7 @@ Ausführliche Dokumentation in [`docs/`](docs/):
 | [GAME_MECHANICS.md](docs/GAME_MECHANICS.md) | Spiellogik & Punktesystem |
 | [DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) | SQLite Datenbankstruktur |
 | [DEPLOYMENT_CHECKLIST.md](docs/DEPLOYMENT_CHECKLIST.md) | Deployment & Markenname-Ersetzung |
-| [ANDOCK_PLAN_V4.md](docs/ANDOCK_PLAN_V4.md) | Test-Ergebnisse & Bug-Tracking |
+| [ANDOCK_PLAN.md](docs/ANDOCK_PLAN.md) | Aktueller Implementierungsplan & Bug-Tracking |
 
 ---
 
@@ -310,7 +316,7 @@ Entwickelt für Familiengottesdienste und kirchliche Veranstaltungen.
 
 ## 📞 Support & Kontakt
 
-- **Issues:** [GitHub Issues](https://github.com/your-username/lichtblick/issues)
+- **Issues:** [GitHub Issues](https://github.com/hndrk-fegko/LichtBlick/issues)
 - **Dokumentation:** [docs/](docs/)
 - **E-Mail:** [Kontakt zur FeG Nahude]
 
