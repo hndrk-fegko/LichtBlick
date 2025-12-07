@@ -60,6 +60,10 @@ const state = {
 // Throttle for spotlight updates
 const SPOTLIGHT_THROTTLE = 50;
 
+// Scroll animation constants
+const SMOOTH_SCROLL_DURATION = 350; // ms
+const SCROLL_TOLERANCE = 1; // px for detecting scroll end
+
 // ============================================================
 // DOM REFERENCES
 // ============================================================
@@ -750,14 +754,10 @@ function renderGameStrip() {
   
   let html = '';
   
-  // Start Image (if set and not same as end)
-  if (startImage && !startAndEndSame) {
+  // Bug-006 fix: Show start and end separately even if they're the same image
+  // Start Image (always show if set)
+  if (startImage) {
     html += renderStripCardWithInput(startImage, 'start', false);
-  }
-  
-  // Start+End combined (if same image)
-  if (startAndEndSame) {
-    html += renderStripCardWithInput(startImage, 'start-end', false);
   }
   
   // Game Images (sorted: played first, then unplayed)
@@ -774,8 +774,9 @@ function renderGameStrip() {
     html += renderStripCardWithInput(gi, 'game', gi.is_played, index + 1, isCurrentlyPlaying);
   });
   
-  // End Image (if set and not same as start)
-  if (endImage && !startAndEndSame) {
+  // Bug-006 fix: Always show end image if set, even if same as start
+  // End Image (always show if set)
+  if (endImage) {
     html += renderStripCardWithInput(endImage, 'end', false);
   }
   
@@ -819,6 +820,9 @@ function renderGameStrip() {
     const currentCard = dom.stripScroll.querySelector(`.game-card-container[data-id="${state.selectedGameImageId}"]`);
     currentCard?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
   }
+  
+  // Bug-014 fix: Update scroll button states
+  updateScrollButtons();
 }
 
 function renderStripCardWithInput(item, type, isPlayed, orderNum = null, isCurrentlyPlaying = false) {
@@ -993,15 +997,12 @@ function startDrawing(e) {
 }
 
 function handleMouseMove(e) {
+  // Only draw when actively dragging spotlight
   if (state.isDrawing) {
     draw(e);
-  } else if (state.spotlightEnabled && state.canvasImage) {
-    // Show preview cursor without drawing
-    // Only redraw if spotlight is enabled (no constant refresh)
-    // User mentioned: "vielleicht ist das auch der grund, warum spotlight bewegen nicht funktioniert"
-    // The issue was that ANY mousemove was calling draw(), not just when drawing
-    // Now we only call draw() when actually drawing
   }
+  // Note: Preview cursor without drawing was considered but not needed
+  // The static spotlight circles on click are sufficient for user feedback
 }
 
 function draw(e) {
@@ -1655,6 +1656,13 @@ async function removeImageFromGame(imageId) {
 }
 
 async function addImageToGame(imageId) {
+  // Bug-007 fix: Prevent adding start/end images to game
+  const img = state.imagePool.find(i => i.id === imageId);
+  if (img && (img.is_start_image || img.is_end_image)) {
+    toast('Bild kann nicht hinzugefügt werden: Es ist bereits als Start- oder End-Bild gesetzt', 'warning');
+    return;
+  }
+  
   try {
     const res = await authFetch('/api/game-images', {
       method: 'POST',
@@ -1672,6 +1680,13 @@ async function addImageToGame(imageId) {
 }
 
 async function setSpecialImage(imageId, type) {
+  // Bug-007 fix: Prevent setting start/end if image is in game
+  const inGame = state.gameImages.some(g => g.image_id === imageId);
+  if (inGame) {
+    toast('Bild kann nicht als Start/End gesetzt werden: Es ist bereits im Spiel', 'warning');
+    return;
+  }
+  
   try {
     const endpoint = `/api/images/${imageId}/set-${type}`;
     const res = await authFetch(endpoint, {
@@ -2311,7 +2326,28 @@ function showHelp() {
 function scrollStrip(amount) {
   if (dom.stripScroll) {
     dom.stripScroll.scrollBy({ left: amount, behavior: 'smooth' });
+    // Update button states after scroll animation completes
+    setTimeout(updateScrollButtons, SMOOTH_SCROLL_DURATION);
   }
+}
+
+// Bug-014 fix: Update scroll button disabled states
+function updateScrollButtons() {
+  if (!dom.stripScroll || !dom.stripNavLeft || !dom.stripNavRight) return;
+  
+  const { scrollLeft, scrollWidth, clientWidth } = dom.stripScroll;
+  const maxScroll = scrollWidth - clientWidth;
+  
+  // Disable left button if at start
+  dom.stripNavLeft.disabled = scrollLeft <= 0;
+  
+  // Disable right button if at end (with tolerance for rounding)
+  dom.stripNavRight.disabled = scrollLeft >= maxScroll - SCROLL_TOLERANCE;
+}
+
+// Add scroll event listener to update buttons in real-time
+if (dom.stripScroll) {
+  dom.stripScroll.addEventListener('scroll', updateScrollButtons);
 }
 
 // ============================================================
