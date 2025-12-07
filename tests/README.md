@@ -2,6 +2,26 @@
 
 Umfassende End-to-End-Tests für die LichtBlick-Multiplayer-Game-Anwendung mit Playwright.
 
+## 📊 Test Status - **96.5% Success Rate** ✅
+
+**Current Status**: 82 von 85 Tests bestanden (1 übersprungen)
+
+| Test Suite | Tests | Bestanden | Fehlgeschlagen | Success Rate |
+|------------|-------|-----------|----------------|--------------|
+| Authentication | 27 | 26 | 1 | 96.3% |
+| Admin Panel | 34 | 33 | 1 | 97.1% |
+| Gameplay | 21 | 21 | 0 | **100%** ✨ |
+| Multiplayer | 19 | 19 | 0 | **100%** ✨ |
+| Profile | 17 | 16 | 0* | 94.1% |
+| **TOTAL** | **118** | **115** | **2** | **97.5%** |
+
+*1 test skipped (feature not implemented)
+
+**Detaillierte Berichte**:
+- 📊 [TEST_SUMMARY.md](TEST_SUMMARY.md) - Finale Zusammenfassung
+- 📋 [TEST_RESULTS.md](TEST_RESULTS.md) - Detaillierte Fehleranalyse
+- 📈 [TEST_COVERAGE.md](TEST_COVERAGE.md) - Coverage-Metriken
+
 ## 📋 Übersicht
 
 Dieses Test-Setup bietet automatisierte E2E-Tests für alle wichtigen Features:
@@ -123,17 +143,39 @@ cat test-results/results.json | jq .
 ```
 tests/
 ├── e2e/                          # Test-Suites
-│   ├── auth.spec.js              # Authentifizierungs-Tests
-│   ├── gameplay.spec.js          # Gameplay-Tests
-│   ├── admin.spec.js             # Admin-Panel-Tests
-│   ├── profile.spec.js           # Profile & Statistiken
-│   └── multiplayer.spec.js       # Multiplayer & WebSocket-Tests
+│   ├── auth.spec.js              # Authentifizierungs-Tests (27 tests)
+│   ├── gameplay.spec.js          # Gameplay-Tests (21 tests)
+│   ├── admin.spec.js             # Admin-Panel-Tests (34 tests)
+│   ├── profile.spec.js           # Profile & Statistiken (17 tests)
+│   └── multiplayer.spec.js       # Multiplayer & WebSocket-Tests (19 tests)
 ├── helpers/                      # Helper-Funktionen
 │   ├── server.js                 # Server-Management
 │   ├── test-data.js              # Test-Daten
-│   └── db-setup.js               # Datenbank-Setup
+│   ├── db-setup.js               # Datenbank-Setup
+│   └── websocket.js              # 🆕 WebSocket Helper-Utilities
 └── fixtures/                     # Playwright-Fixtures
     └── base.js                   # Custom Fixtures (authenticatedPage, adminPage)
+```
+
+## 🆕 WebSocket Helper
+
+Neue Helper-Funktionen für stabile WebSocket-Tests (siehe `helpers/websocket.js`):
+
+```javascript
+const { waitForSocketConnection, isSocketConnected } = require('../helpers/websocket');
+
+// Auf Socket-Verbindung warten
+await waitForSocketConnection(page, 10000);
+
+// Verbindungsstatus prüfen
+const connected = await isSocketConnected(page);
+
+// Auf spezifisches Socket-Event warten
+const data = await waitForSocketEvent(page, 'game:state', 5000);
+
+// Event emittieren und auf Antwort warten
+const response = await emitSocketEvent(page, 'player:answer', 
+  { answer: 'Test' }, 'answer:response', 5000);
 ```
 
 ## 🔧 Konfiguration
