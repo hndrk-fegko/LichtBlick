@@ -417,7 +417,7 @@ function setupEventListeners() {
 // ============================================================
 function setupSocketListeners() {
   if (!window.socketAdapter) {
-    console.error('Socket adapter not found!');
+    toast('Socket-Verbindung konnte nicht hergestellt werden', 'error');
     return;
   }
   
@@ -730,7 +730,7 @@ async function loadImages() {
     updateGameControlButtons();
     
   } catch (error) {
-    console.error('Failed to load images:', error);
+    toast('Fehler beim Laden der Bilder', 'error');
   }
 }
 
@@ -911,8 +911,8 @@ function selectGameImage(id) {
 // CANVAS & SPOTLIGHT
 // ============================================================
 function loadImageToCanvas(imageId) {
-  const poolImage = state.imagePool.find(img => img.id == imageId);
-  const gameImage = state.gameImages.find(gi => gi.image_id == imageId);
+  const poolImage = state.imagePool.find(img => img.id === imageId);
+  const gameImage = state.gameImages.find(gi => gi.image_id === imageId);
   const imageUrl = poolImage?.url || gameImage?.url;
   
   if (!imageUrl) return;
@@ -922,6 +922,10 @@ function loadImageToCanvas(imageId) {
     state.canvasImage = img;
     state.spotlightClicks = []; // Reset spotlights for new image
     redrawCanvas();
+  };
+  img.onerror = () => {
+    toast('Fehler beim Laden des Bildes', 'error');
+    drawEmptyState();
   };
   img.src = imageUrl;
 }
@@ -1566,11 +1570,15 @@ async function addAllFreeImages() {
       });
       if (res.ok) added++;
     } catch (error) {
-      console.error('Failed to add image:', error);
+      // Silently continue with other images
     }
   }
   
-  toast(`${added} Bild(er) hinzugefügt`, 'success');
+  if (added > 0) {
+    toast(`${added} Bild(er) hinzugefügt`, 'success');
+  } else {
+    toast('Keine Bilder konnten hinzugefügt werden', 'warning');
+  }
   loadImages();
 }
 
@@ -1673,9 +1681,11 @@ async function addImageToGame(imageId) {
     if (res.ok) {
       toast('Bild zum Spiel hinzugefügt', 'success');
       loadImages();
+    } else {
+      toast('Fehler beim Hinzufügen des Bildes', 'error');
     }
   } catch (error) {
-    console.error('Failed to add image:', error);
+    toast('Fehler beim Hinzufügen des Bildes', 'error');
   }
 }
 
@@ -1701,7 +1711,6 @@ async function setSpecialImage(imageId, type) {
       toast(data.message || 'Fehler', 'error');
     }
   } catch (error) {
-    console.error('Failed to set special image:', error);
     toast('Fehler beim Setzen des Bildes', 'error');
   }
 }
@@ -1720,7 +1729,6 @@ async function clearImageRole(imageId) {
       toast(data.message || 'Fehler', 'error');
     }
   } catch (error) {
-    console.error('Failed to clear image role:', error);
     toast('Fehler beim Entfernen der Rolle', 'error');
   }
 }
@@ -1748,7 +1756,7 @@ async function updateImageAnswer(imageId, answer) {
     
     renderSidebar();
   } catch (error) {
-    console.error('Failed to update answer:', error);
+    toast('Fehler beim Aktualisieren der Antwort', 'error');
   }
 }
 
@@ -1758,7 +1766,7 @@ async function deleteImage(imageId) {
     toast('Bild gelöscht', 'success');
     loadImages();
   } catch (error) {
-    console.error('Failed to delete image:', error);
+    toast('Fehler beim Löschen des Bildes', 'error');
   }
 }
 
@@ -1826,7 +1834,7 @@ function setupUpload() {
         });
         uploaded++;
       } catch (error) {
-        console.error('Upload failed:', error);
+        // Continue with remaining files
       }
       
       const percent = Math.round((uploaded / files.length) * 100);
@@ -1909,7 +1917,7 @@ async function loadWordlist() {
       }
     }
   } catch (error) {
-    console.error('Failed to load wordlist:', error);
+    toast('Fehler beim Laden der Wortliste', 'warning');
   }
 }
 
@@ -2023,8 +2031,7 @@ async function loadScoringSettings() {
       }
     }
   } catch (error) {
-    console.error('Failed to load scoring settings:', error);
-    // Use defaults
+    // Use defaults on error
     const basePoints = document.getElementById('base-points');
     const speedEnabled = document.getElementById('speed-bonus-enabled');
     const speedPercent = document.getElementById('speed-bonus-percent');
@@ -2127,7 +2134,6 @@ async function saveSettings() {
       closeModal('settings-modal');
     }
   } catch (error) {
-    console.error('Save settings failed:', error);
     toast('Fehler beim Speichern', 'error');
   }
 }

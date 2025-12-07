@@ -280,14 +280,14 @@ module.exports = (io, socket) => {
     if (!requireAdmin('admin:start_game', callback)) return;
     try {
       const game = db.getActiveGame();
-      if (!game) return callback({ success: false, message: 'No active game' });
+      if (!game) return callback && callback({ success: false, message: 'No active game' });
       db.updateGameStatus(game.id, 'playing');
       const image = loadAndBroadcastImage(imageId, 'playing');
-      if (!image) return callback({ success: false, message: 'Image not found' });
-      callback({ success: true });
+      if (!image) return callback && callback({ success: false, message: 'Image not found' });
+      callback && callback({ success: true });
     } catch (error) {
       logger.error('Start game failed', { error: error.message });
-      callback({ success: false, message: 'Failed to start game' });
+      callback && callback({ success: false, message: 'Failed to start game' });
     }
   });
 
