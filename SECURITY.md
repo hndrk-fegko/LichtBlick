@@ -94,7 +94,7 @@ cd server
 npm start
 
 # In separatem Terminal
-powershell -ExecutionPolicy Bypass -File test-security.ps1
+powershell -ExecutionPolicy Bypass -File scripts/test-security.ps1
 ```
 
 Tests:

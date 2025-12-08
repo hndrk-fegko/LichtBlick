@@ -53,9 +53,9 @@ Wenn ein **Server im Hintergrund läuft** (z.B. `npm start` mit `isBackground: t
 # PROBLEM: Start-Process im gleichen Terminal beendet trotzdem den Server!
 # LÖSUNG: Test-Skript als .ps1 Datei erstellen und User bitten es separat auszuführen
 
-# 1. Erstelle test-security.ps1 mit create_file Tool
+# 1. Erstelle scripts/test-security.ps1 mit create_file Tool
 # 2. Informiere den User: "Bitte öffne ein neues Terminal und führe aus:"
-#    .\test-security.ps1
+#    .\scripts\test-security.ps1
 ```
 
 ### Praktischer Workaround - Start-Job:
@@ -72,7 +72,7 @@ Write-Host "Server gestartet als Job $($serverJob.Id)..."
 Start-Sleep -Seconds 3  # Warten bis Server hochgefahren ist
 
 # Tests ausführen
-.\test-security.ps1
+.\scripts\test-security.ps1
 
 # Server beenden
 Stop-Job $serverJob

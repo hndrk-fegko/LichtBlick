@@ -1,0 +1,68 @@
+/**
+ * Admin Panel Styles - Main Entry Point
+ * LichtBlick
+ * 
+ * Modular CSS Architecture:
+ * - _variables.css   : CSS Custom Properties (design tokens)
+ * - _base.css        : Reset, typography, utilities
+ * - _layout.css      : Grid structure
+ * - _header.css      : Header component
+ * - _buttons.css     : Button components
+ * - _canvas.css      : Spotlight canvas
+ * - _leaderboard.css : Leaderboard panel
+ * - _game-strip.css  : Horizontal game images
+ * - _controls.css    : Control bar
+ * - _footer.css      : Footer bar
+ * - _sidebar.css     : Image sidebar
+ * - _modals.css      : Modals & toasts
+ * - _animations.css  : Transitions & keyframes
+ */
+
+/* === Module Imports === */
+@import url('./admin/_variables.css');
+@import url('./admin/_base.css');
+@import url('./admin/_layout.css');
+@import url('./admin/_header.css');
+@import url('./admin/_buttons.css');
+@import url('./admin/_canvas.css');
+@import url('./admin/_leaderboard.css');
+@import url('./admin/_game-strip.css');
+@import url('./admin/_controls.css');
+@import url('./admin/_footer.css');
+@import url('./admin/_sidebar.css');
+@import url('./admin/_modals.css');
+@import url('./admin/_animations.css');
+
+/* === Page-Specific Overrides === */
+
+/* Nothing here yet - add page-specific styles if needed */
+
+/* === Debug Mode === */
+.debug-mode .app-header { outline: 2px solid red; }
+.debug-mode .app-main { outline: 2px solid blue; }
+.debug-mode .app-footer { outline: 2px solid green; }
+.debug-mode .canvas-section { outline: 2px dashed orange; }
+.debug-mode .leaderboard-section { outline: 2px dashed purple; }
+.debug-mode .game-strip { outline: 2px dashed cyan; }
+.debug-mode .control-bar { outline: 2px dashed magenta; }
+
+/* === Print Styles === */
+@media print {
+  .app-header,
+  .app-footer,
+  .sidebar,
+  .control-bar,
+  .modal-backdrop,
+  .toast-container {
+    display: none !important;
+  }
+  
+  .app {
+    display: block;
+    height: auto;
+  }
+  
+  .leaderboard-section {
+    page-break-inside: avoid;
+  }
+}

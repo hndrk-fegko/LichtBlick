@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LichtBlick - Admin</title>
+  <link rel="stylesheet" href="/css/admin.css?v=6">
+</head>
+<body>
+  <!-- Auth Overlay -->
+  <div id="auth-screen" class="auth-screen">
+    <div class="auth-box">
+      <h1>🔐 Admin Zugang</h1>
+      <p>Bitte Admin-PIN eingeben:</p>
+      <form id="auth-form">
+        <input type="password" id="admin-pin" placeholder="PIN" minlength="4" maxlength="10" required autocomplete="off" />
+        <button type="submit" class="btn btn-primary">Anmelden</button>
+      </form>
+      <div id="auth-error" class="auth-error hidden"></div>
+    </div>
+  </div>
+  <div class="container">
+    <header>
+      <h1>🔦 LichtBlick Admin</h1>
+      <div class="connection-status" id="connection-status"></div>
+    </header>
+
+    <!-- Admin Schutz / PIN -->
+    <section class="card">
+      <h2>🔐 Admin-Schutz</h2>
+      <div class="pin-controls">
+        <div class="protection-toggle">
+          <label class="switch-label">
+            <input type="checkbox" id="admin-protection-toggle">
+            Admin-Bereich mit PIN schützen
+          </label>
+          <small id="protection-status" class="status-note">Status: aktiv</small>
+        </div>
+        <form id="pin-update-form" class="pin-update-form">
+          <input type="password" id="new-admin-pin" placeholder="Neue PIN" minlength="4" maxlength="10" autocomplete="off" />
+          <button type="submit" class="btn btn-primary">PIN speichern</button>
+        </form>
+        <div id="current-pin" class="pin-display"></div>
+        <div id="pin-feedback" class="pin-feedback hidden"></div>
+        <hr class="divider">
+        <h3>📱 Spieler QR-Code</h3>
+        <p class="hint">Der QR-Code gewährt nur Zugang zur Player-Seite – unabhängig von der Admin-PIN.</p>
+        <div id="qr-code-container" class="hidden">
+          <canvas id="qr-code"></canvas>
+          <p class="qr-url" id="qr-url"></p>
+        </div>
+        <button id="refresh-qr-btn" class="btn btn-secondary" type="button">QR-Code neu laden</button>
+      </div>
+    </section>
+
+    <!-- Image Upload & Pool -->
+    <section class="card">
+      <h2>📷 Bilder verwalten</h2>
+      <div class="upload-controls">
+        <div class="upload-area" id="upload-area">
+          <input type="file" id="file-input" accept="image/*" multiple hidden>
+          <label for="file-input" class="upload-label">
+            <span>📁 Bilder auswählen oder hierher ziehen</span>
+          </label>
+        </div>
+        <div id="upload-progress" class="upload-progress hidden">
+          <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+          </div>
+          <span id="progress-text">0%</span>
+        </div>
+      </div>
+      
+      <p class="hint">Rechtsklick auf Thumbnail: Als Start/End-Bild setzen oder zum Spiel hinzufügen</p>
+      
+      <div class="pool-actions">
+        <button id="add-all-to-game-btn" class="btn btn-primary">➕ Alle zum Spiel hinzufügen</button>
+      </div>
+      
+      <div id="image-pool" class="image-pool"></div>
+      
+      <!-- Context Menu -->
+      <div id="image-context-menu" class="context-menu hidden">
+        <button class="context-btn" data-action="set-start">⭐ Als Start-Bild</button>
+        <button class="context-btn" data-action="set-end">🏁 Als End-Bild</button>
+        <button class="context-btn" data-action="add-to-game">➕ Zum Spiel hinzufügen</button>
+        <button class="context-btn" data-action="clear-role">🚫 Rolle entfernen</button>
+        <hr>
+        <button class="context-btn danger" data-action="delete">🗑️ Löschen</button>
+      </div>
+    </section>
+
+    <!-- Game Images (for current game) -->
+    <section class="card">
+      <h2>🎯 Spiel-Bilder</h2>
+      <p class="hint">Drag & Drop zum Sortieren. Graue Bilder wurden bereits gespielt.</p>
+      
+      <div class="game-images-strip" id="game-images-strip">
+        <p class="empty-state">Keine Bilder im Spiel. Füge Bilder aus dem Pool hinzu.</p>
+      </div>
+      
+      <div class="game-images-actions">
+        <button id="reset-played-btn" class="btn btn-secondary">🔄 Gespielt-Status zurücksetzen</button>
+      </div>
+    </section>
+
+    <!-- Word List (Decoys) -->
+    <section class="card">
+      <h2>📝 Wörterliste (Täusch-Wörter)</h2>
+      <p class="hint">Diese Wörter werden Spielern als Antwortoptionen angezeigt (zusätzlich zu den richtigen Antworten).</p>
+      
+      <div class="word-list-editor">
+        <textarea id="word-list-textarea" rows="4" placeholder="Ein Wort pro Zeile..."></textarea>
+        <button id="save-words-btn" class="btn btn-primary">💾 Speichern</button>
+      </div>
+    </section>
+
+    <!-- Game Controls -->
+    <section class="card">
+      <h2>🎮 Spielsteuerung</h2>
+      
+      <div class="game-controls">
+        <div class="control-group">
+          <label>Spielphase:</label>
+          <div class="phase-indicator" id="phase-indicator">Lobby</div>
+        </div>
+
+        <div class="control-group">
+          <button id="start-game-btn" class="btn btn-success">▶ Spiel starten</button>
+          <button id="reveal-image-btn" class="btn btn-warning" disabled>👁 Bild aufdecken</button>
+          <button id="next-image-btn" class="btn btn-primary" disabled>⏭ Nächstes Bild</button>
+          <button id="end-game-btn" class="btn btn-danger" disabled>⏹ Spiel beenden</button>
+        </div>
+
+        <div class="control-group">
+          <label>
+            <input type="checkbox" id="qr-toggle">
+            QR-Code auf Beamer anzeigen
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- Spotlight Drawing -->
+    <section class="card">
+      <h2>🔦 Spotlight Zeichnung</h2>
+      <div class="spotlight-controls">
+        <label>
+          <input type="checkbox" id="spotlight-toggle">
+          Spotlight-Modus aktivieren
+        </label>
+        <div class="spotlight-sliders">
+          <label>
+            Größe: <input type="range" id="spotlight-size" min="20" max="200" value="80">
+            <span id="spotlight-size-value">80px</span>
+          </label>
+          <label>
+            Stärke: <input type="range" id="spotlight-strength" min="10" max="100" value="100">
+            <span id="spotlight-strength-value">100%</span>
+          </label>
+          <label>
+            Fokus: <input type="range" id="spotlight-focus" min="0" max="100" value="70">
+            <span id="spotlight-focus-value">70%</span>
+          </label>
+        </div>
+        <label class="reveal-overlay-toggle">
+          <input type="checkbox" id="reveal-overlay-toggle">
+          🟢 Aufgedeckte Bereiche markieren
+        </label>
+        <button id="clear-spotlights-btn" class="btn btn-secondary btn-small" 
+                title="Löscht alle fixierten Spotlights auf Admin UND Beamer. Nützlich nach Verbindungsabbruch um beide zu synchronisieren.">
+          🗑 Spotlights löschen
+        </button>
+      </div>
+      <p class="hint">Vorschau: 80% Abdunkelung (Beamer: 100%). Klicken fixiert Spotlights. Stärke = Transparenz pro Klick, Fokus = harter Kern des Spotlights.</p>
+      <canvas id="spotlight-canvas"></canvas>
+    </section>
+
+    <!-- Player Lobby -->
+    <section class="card">
+      <h2>👥 Spieler Lobby (<span id="player-count">0</span>)</h2>
+      <div id="player-list" class="player-list"></div>
+    </section>
+
+    <!-- Leaderboard -->
+    <section class="card">
+      <h2>🏆 Leaderboard</h2>
+      <div id="leaderboard" class="leaderboard"></div>
+    </section>
+
+    <!-- Danger Zone -->
+    <section class="card danger-zone">
+      <details id="danger-zone-details">
+        <summary class="danger-zone-header">
+          <h2>⚠️ Gefahrenbereich</h2>
+          <span class="danger-zone-hint">Klicken zum Öffnen</span>
+        </summary>
+        
+        <div class="danger-zone-content hidden" id="danger-zone-content">
+          <div class="danger-warning">
+            <p>⚠️ <strong>Achtung!</strong> Die folgenden Aktionen können nicht rückgängig gemacht werden.</p>
+          </div>
+          
+          <!-- Spiel zurücksetzen -->
+          <div class="danger-action">
+            <h3>🔄 Spiel zurücksetzen</h3>
+            <p>Setzt das aktuelle Spiel in den Lobby-Status zurück. Alle Punkte werden auf 0 gesetzt, alle Antworten gelöscht und alle Bilder als "nicht gespielt" markiert.</p>
+            <p><strong>Bleibt erhalten:</strong> Spieler, Spiel-Bilder, Start/End-Bilder, Uploads, Einstellungen</p>
+            <button id="reset-game-btn" class="btn btn-danger">🔄 Spiel zurücksetzen</button>
+          </div>
+          
+          <!-- Komplett zurücksetzen -->
+          <div class="danger-action">
+            <h3>🧹 Komplett zurücksetzen</h3>
+            <p>Setzt alles zurück wie bei "Spiel zurücksetzen", zusätzlich werden alle Spieler abgemeldet und alle Spiel-Bilder zurück in den Pool verschoben.</p>
+            <label class="checkbox-label">
+              <input type="checkbox" id="reset-complete-include-roles">
+              Auch Start/End-Bild Zuweisungen zurücksetzen
+            </label>
+            <button id="reset-complete-btn" class="btn btn-danger">🧹 Komplett zurücksetzen</button>
+          </div>
+          
+          <!-- Server Neustart -->
+          <div class="danger-action server-restart">
+            <h3>🔃 Server neustarten</h3>
+            <p>Startet den Node.js Server neu. Alle Verbindungen werden kurz unterbrochen und automatisch wiederhergestellt.</p>
+            <p><em>Nützlich bei Problemen oder nach Konfigurationsänderungen.</em></p>
+            <button id="restart-server-btn" class="btn btn-warning">🔃 Server neustarten</button>
+          </div>
+          
+          <!-- Factory Reset -->
+          <div class="danger-action factory-reset">
+            <h3>💥 Factory Reset</h3>
+            <p><strong>ACHTUNG:</strong> Löscht ALLES! Datenbank wird geleert, alle Uploads gelöscht, alle Einstellungen auf Werkseinstellungen zurückgesetzt.</p>
+            <p>Dies ist, als würde die App zum ersten Mal gestartet.</p>
+            <button id="factory-reset-btn" class="btn btn-danger btn-factory">💥 Factory Reset</button>
+          </div>
+        </div>
+      </details>
+    </section>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/socket-adapter.js?v=8"></script>
+  <script src="/js/spotlight-renderer.js?v=1"></script>
+  <script src="/js/admin.js?v=10"></script>
+</body>
+</html>
