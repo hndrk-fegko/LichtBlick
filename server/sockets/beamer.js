@@ -25,8 +25,9 @@ module.exports = (io, socket) => {
       ).get(game.id);
       
       // Send initial state
-      socket.emit('beamer:initial_state', {
+      const initialState = {
         success: true,
+        phase: game.status, // Top-level for easier access
         data: {
           game: { 
             id: game.id, 
@@ -34,10 +35,20 @@ module.exports = (io, socket) => {
           },
           playerCount: playerCount.count
         }
+      };
+      
+      logger.debug('Sending beamer:initial_state', { 
+        socketId: socket.id.substring(0, 8),
+        phase: game.status,
+        playerCount: playerCount.count
       });
       
+      socket.emit('beamer:initial_state', initialState);
+      
+      // Get current image ID from game state
+      const currentImageId = game.current_image_id;
+      
       // Send current image if any
-      const currentImageId = db.getConfig('currentImageId');
       if (currentImageId) {
         const stmt = db.db.prepare('SELECT * FROM images WHERE id = ?');
         const image = stmt.get(currentImageId);
@@ -56,6 +67,13 @@ module.exports = (io, socket) => {
       const storedUrl = db.getPlayerJoinUrl();
       const host = socket.handshake.headers.host;
       const joinUrl = storedUrl || `http://${host}/player.html`;
+      
+      logger.debug('Sending beamer:qr_state', { 
+        socketId: socket.id.substring(0, 8),
+        enabled: qrEnabled,
+        url: joinUrl
+      });
+      
       socket.emit('beamer:qr_state', {
         enabled: qrEnabled,
         visible: qrEnabled, // backward compatibility

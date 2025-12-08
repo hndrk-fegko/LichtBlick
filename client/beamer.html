@@ -12,20 +12,41 @@
     <!-- Start image background (if set) -->
     <div id="start-image-bg" class="start-image-bg"></div>
     
-    <!-- Default lobby content (shown when no start image) -->
-    <div id="lobby-content-default" class="lobby-content">
-      <h1 class="logo">🔦 LichtBlick</h1>
-      <p class="subtitle">Warte auf Spielstart...</p>
-      
-      <div class="loading-animation">
-        <div class="spinner"></div>
+    <!-- Lobby Layout Container -->
+    <div id="lobby-layout" class="lobby-layout">
+      <!-- Main Content (left side) -->
+      <div class="lobby-main-content">
+        <!-- Default lobby content (shown when no start image) -->
+        <div id="lobby-content-default" class="lobby-content">
+          <h1 class="logo">🔦 LichtBlick</h1>
+          
+          <div class="waiting-section">
+            <p class="subtitle">Warte auf Spielstart...</p>
+            
+            <div class="loading-animation">
+              <div class="spinner"></div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Waiting info box (shown when start image is displayed) -->
+        <div id="waiting-info-box" class="waiting-info-box hidden">
+          <span class="spinner-small"></span>
+          <span>Warte auf Spielstart...</span>
+        </div>
       </div>
-    </div>
-    
-    <!-- Waiting info box (shown when start image is displayed) -->
-    <div id="waiting-info-box" class="waiting-info-box hidden">
-      <span class="spinner-small"></span>
-      <span>Warte auf Spielstart...</span>
+      
+      <!-- QR Code Side Panel (right side) -->
+      <div id="qr-side-panel" class="qr-side-panel hidden">
+        <div class="qr-panel-content">
+          <h2 class="qr-title">Jetzt mitspielen!</h2>
+          <div class="qr-code-container">
+            <canvas id="qr-canvas"></canvas>
+          </div>
+          <p class="qr-url" id="qr-url"></p>
+          <p class="qr-instruction">Scanne den Code oder besuche die URL</p>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -43,16 +64,6 @@
       <h1 class="result-title">🏆 Gewinner!</h1>
       <div id="leaderboard" class="leaderboard"></div>
       <p class="thank-you">Vielen Dank fürs Mitspielen! 🎉</p>
-    </div>
-  </div>
-
-  <!-- QR Code Overlay -->
-  <div id="qr-overlay" class="qr-overlay hidden">
-    <div class="qr-box">
-      <h2>Jetzt mitspielen!</h2>
-      <canvas id="qr-canvas"></canvas>
-      <p class="qr-url" id="qr-url"></p>
-      <p class="qr-instruction">Scanne den QR-Code oder besuche die URL</p>
     </div>
   </div>
 

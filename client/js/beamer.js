@@ -35,20 +35,13 @@ function loadStartImage() {
         showStartImage(startImage.url);
       }
       
-      // Also load end image for result screen
+      // Cache end image for later use
       const endImage = data.data.find(img => img.is_end_image);
       if (endImage) {
-        cacheEndImage(endImage.url);
+        endImageUrl = endImage.url;
       }
     })
     .catch(err => console.error('Failed to load start image:', err));
-}
-
-function cacheEndImage(url) {
-  // Store end image URL for later use (module-level variable)
-  if (url && typeof url === 'string') {
-    endImageUrl = url;
-  }
 }
 
 function showStartImage(url) {
@@ -59,6 +52,7 @@ function showStartImage(url) {
   bgDiv.style.backgroundImage = `url(${url})`;
   bgDiv.classList.add('has-image');
   defaultContent.style.display = 'none';
+  infoBox.classList.remove('hidden'); // CSS-Klasse entfernen
   infoBox.style.display = 'flex';
 }
 
@@ -70,23 +64,100 @@ function hideStartImage() {
   bgDiv.style.backgroundImage = '';
   bgDiv.classList.remove('has-image');
   defaultContent.style.display = 'flex';
+  infoBox.classList.add('hidden'); // CSS-Klasse hinzufügen
   infoBox.style.display = 'none';
 }
 
+function showEndImage(url) {
+  const resultScreen = document.getElementById('result-screen');
+  if (!resultScreen) return;
+  
+  if (url && typeof url === 'string') {
+    // Validate URL format
+    const isValidUrl = url.startsWith('data:image/') || 
+                       url.startsWith('/') ||
+                       /^https?:\/\//.test(url);
+    
+    if (isValidUrl) {
+      resultScreen.style.backgroundImage = `url(${CSS.escape(url)})`;
+      resultScreen.style.backgroundSize = 'cover';
+      resultScreen.style.backgroundPosition = 'center';
+      resultScreen.style.backgroundRepeat = 'no-repeat';
+      resultScreen.classList.add('has-image');
+    }
+  }
+}
+
+function hideEndImage() {
+  const resultScreen = document.getElementById('result-screen');
+  if (!resultScreen) return;
+  
+  resultScreen.style.backgroundImage = '';
+  resultScreen.classList.remove('has-image');
+}
+
 function handleImageRolesChanged(data) {
-  // Only update if we're in lobby phase
-  if (currentPhase !== 'lobby') return;
-  
-  if (data.startImage && data.startImage.url) {
-    showStartImage(data.startImage.url);
-  } else {
-    hideStartImage();
+  // Update start image if we're in lobby phase
+  if (currentPhase === 'lobby') {
+    if (data.startImage && data.startImage.url) {
+      showStartImage(data.startImage.url);
+    } else {
+      hideStartImage();
+    }
   }
   
-  // Cache end image for result screen
+  // Update end image if we're in ended phase (or cache for later)
   if (data.endImage && data.endImage.url) {
-    cacheEndImage(data.endImage.url);
+    endImageUrl = data.endImage.url; // Cache for phase transition
+    
+    if (currentPhase === 'ended') {
+      showEndImage(data.endImage.url);
+    }
+  } else if (currentPhase === 'ended') {
+    hideEndImage();
   }
+}
+
+// ============================================
+// STATE VALIDATION
+// ============================================
+// Validates if an event is allowed in the current phase
+// Logs violations for debugging admin-side issues
+
+function isEventAllowedInPhase(eventName) {
+  const rules = {
+    // LOBBY: Only QR, Start-Image, Phase-Changes
+    'lobby': {
+      allowed: ['beamer:qr_state', 'beamer:image_roles_changed', 'game:phase_change', 'game:lobby_update'],
+      denied: ['beamer:spotlight', 'beamer:spotlight_click', 'beamer:reveal_image', 'beamer:image_changed', 'beamer:clear_spotlight']
+    },
+    // PLAYING: Spotlights, Image-Changes, Reveals - NO QR
+    'playing': {
+      allowed: ['beamer:spotlight', 'beamer:spotlight_click', 'beamer:reveal_image', 'beamer:image_changed', 'beamer:clear_spotlight', 'game:phase_change'],
+      denied: ['beamer:qr_state']
+    },
+    // ENDED: Leaderboard, Reset - NO QR
+    'ended': {
+      allowed: ['game:leaderboard_update', 'beamer:game_reset', 'game:phase_change'],
+      denied: ['beamer:spotlight', 'beamer:spotlight_click', 'beamer:reveal_image', 'beamer:image_changed', 'beamer:qr_state']
+    }
+  };
+  
+  const phaseRules = rules[currentPhase];
+  if (!phaseRules) return true; // Unknown phase, allow (safety)
+  
+  // Check if explicitly allowed
+  if (phaseRules.allowed.includes(eventName)) return true;
+  
+  // Check if explicitly denied
+  if (phaseRules.denied.includes(eventName)) {
+    console.warn(`🚫 Beamer: Event "${eventName}" blocked in phase "${currentPhase}"`);
+    console.warn('   → Admin may be in wrong state or sending invalid events');
+    return false;
+  }
+  
+  // Not in lists, allow by default
+  return true;
 }
 
 function setupCanvas() {
@@ -122,9 +193,13 @@ function setupFullscreen() {
 
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen();
+    document.documentElement.requestFullscreen().catch(err => {
+      console.warn('Fullscreen request failed:', err);
+    });
   } else {
-    document.exitFullscreen();
+    document.exitFullscreen().catch(err => {
+      console.warn('Exit fullscreen failed:', err);
+    });
   }
 }
 
@@ -151,15 +226,26 @@ function setupSocketListeners() {
 }
 
 function handleInitialState(data) {
-  currentPhase = data.phase;
+  // Extract phase from nested data structure
+  const phase = data.data?.game?.status || data.phase || 'lobby';
+  currentPhase = phase;
   
-  if (data.phase === 'playing' && data.imageId) {
-    loadImage(data.imageId);
+  console.log('Beamer: Initial state received', { phase, data });
+  
+  // Load image if in playing phase
+  if (phase === 'playing') {
+    const imageId = data.data?.imageId || data.imageId;
+    if (imageId) {
+      loadImage(imageId);
+    }
   }
   
-  showScreen(data.phase === 'lobby' ? 'lobby' : 
-             data.phase === 'playing' ? 'game' : 
-             data.phase === 'ended' ? 'result' : 'lobby');
+  // Show appropriate screen
+  const screenName = phase === 'lobby' ? 'lobby' : 
+                     phase === 'playing' ? 'game' : 
+                     phase === 'ended' ? 'result' : 'lobby';
+  
+  showScreen(screenName);
 }
 
 function handleLobbyUpdate(data) {
@@ -168,7 +254,17 @@ function handleLobbyUpdate(data) {
 }
 
 function handlePhaseChange(data) {
+  const oldPhase = currentPhase;
   currentPhase = data.phase;
+  
+  console.log(`Beamer: Phase changed from "${oldPhase}" to "${data.phase}"`);
+  
+  // QR-Code Panel automatisch ausblenden wenn Lobby verlassen wird
+  if (oldPhase === 'lobby' && data.phase !== 'lobby') {
+    const qrPanel = document.getElementById('qr-side-panel');
+    qrPanel.classList.add('hidden');
+    console.log('   → QR-Code Panel ausgeblendet (Phase-Wechsel)');
+  }
   
   if (data.phase === 'playing') {
     showScreen('game');
@@ -177,35 +273,22 @@ function handlePhaseChange(data) {
     }
   } else if (data.phase === 'ended') {
     showScreen('result');
-    applyEndImageBackground();
+    // Apply end image if cached
+    if (endImageUrl) {
+      showEndImage(endImageUrl);
+    }
   } else {
     showScreen('lobby');
   }
 }
 
-function applyEndImageBackground() {
-  const resultScreen = document.getElementById('result-screen');
-  if (!resultScreen) return; // Safety check
-  
-  if (endImageUrl && typeof endImageUrl === 'string') {
-    // Validate URL format (basic check for data URLs or http/https URLs)
-    const isValidUrl = endImageUrl.startsWith('data:image/') || 
-                       endImageUrl.startsWith('/') ||
-                       /^https?:\/\//.test(endImageUrl);
-    
-    if (isValidUrl) {
-      resultScreen.style.backgroundImage = `url(${CSS.escape(endImageUrl)})`;
-      resultScreen.style.backgroundSize = 'cover';
-      resultScreen.style.backgroundPosition = 'center';
-      resultScreen.style.backgroundRepeat = 'no-repeat';
-    }
-  } else {
-    // Fallback to gradient if no end image
-    resultScreen.style.backgroundImage = '';
-  }
-}
-
 function handleImageChanged(data) {
+  // Validate: Only allowed in PLAYING phase
+  if (!isEventAllowedInPhase('beamer:image_changed')) {
+    console.warn('   → Ignoring image change, not in playing phase');
+    return;
+  }
+  
   spotlightClicks = [];
   currentMouseSpot = null;
   isRevealed = false;
@@ -236,6 +319,11 @@ function loadImage(imageId) {
 
 // Temporärer Maus-Spotlight (Bewegung)
 function handleSpotlight(data) {
+  // Validate: Only allowed in PLAYING phase
+  if (!isEventAllowedInPhase('beamer:spotlight')) {
+    return; // Silent ignore (too many events for logging)
+  }
+  
   currentMouseSpot = {
     x: data.x,
     y: data.y,
@@ -248,6 +336,12 @@ function handleSpotlight(data) {
 
 // Fixierter Klick-Spotlight
 function handleSpotlightClick(data) {
+  // Validate: Only allowed in PLAYING phase
+  if (!isEventAllowedInPhase('beamer:spotlight_click')) {
+    console.warn('   → Ignoring spotlight click, not in playing phase');
+    return;
+  }
+  
   spotlightClicks.push({
     x: data.x,
     y: data.y,
@@ -259,6 +353,12 @@ function handleSpotlightClick(data) {
 }
 
 function clearSpotlight() {
+  // Validate: Only allowed in PLAYING phase
+  if (!isEventAllowedInPhase('beamer:clear_spotlight')) {
+    console.warn('   → Ignoring clear spotlight, not in playing phase');
+    return;
+  }
+  
   spotlightClicks = [];
   currentMouseSpot = null;
   redrawCanvas();
@@ -266,6 +366,16 @@ function clearSpotlight() {
 
 // Bild komplett aufdecken
 function handleRevealImage(data) {
+  // Validate: Only allowed in PLAYING phase
+  if (!isEventAllowedInPhase('beamer:reveal_image')) {
+    console.warn('   → Ignoring reveal, not in playing phase');
+    return;
+  }
+  
+  // Clear spotlights before reveal (cleaner look)
+  spotlightClicks = [];
+  currentMouseSpot = null;
+  
   isRevealed = true;
   currentCorrectAnswer = data.correctAnswer || '';
   redrawCanvas();
@@ -298,14 +408,24 @@ function hideAnswerOverlay() {
 }
 
 function handleQRState(data) {
-  const overlay = document.getElementById('qr-overlay');
+  console.log('🔲 Beamer: QR state received', data);
+  
+  // QR nur in LOBBY Phase erlaubt (Spieler joinen nicht mid-game)
+  if (!isEventAllowedInPhase('beamer:qr_state')) {
+    console.warn('   → Ignoring QR state change, only allowed in lobby phase');
+    return;
+  }
+  
+  const qrPanel = document.getElementById('qr-side-panel');
   
   if (data.enabled && data.url) {
     document.getElementById('qr-url').textContent = data.url;
     generateQRCode(data.url);
-    overlay.style.display = 'flex';
+    qrPanel.classList.remove('hidden');
+    console.log('   → QR-Code Panel angezeigt:', data.url);
   } else {
-    overlay.style.display = 'none';
+    qrPanel.classList.add('hidden');
+    console.log('   → QR-Code Panel ausgeblendet');
   }
 }
 
@@ -334,7 +454,13 @@ function generateQRCode(url) {
 }
 
 function handleLeaderboardUpdate(data) {
-  if (!data.topPlayers || currentPhase !== 'ended') return;
+  // Validate: Only allowed in ENDED phase
+  if (!isEventAllowedInPhase('game:leaderboard_update')) {
+    console.warn('   → Ignoring leaderboard update, not in ended phase');
+    return;
+  }
+  
+  if (!data.topPlayers) return;
   
   updateLeaderboard(data.topPlayers);
 }
@@ -366,6 +492,13 @@ function updateLeaderboard(players) {
 function redrawCanvas() {
   if (!ctx) return;
   
+  // Only render in PLAYING phase
+  if (currentPhase !== 'playing') {
+    // Clear canvas in other phases to prevent black overlay
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    return;
+  }
+  
   // Nutze gemeinsame Render-Logik mit Beamer-Einstellungen (preview=false)
   SpotlightRenderer.render({
     ctx: ctx,
@@ -385,11 +518,24 @@ function showScreen(screenName) {
     result: document.getElementById('result-screen')
   };
   
+  console.log(`Beamer: Switching to screen "${screenName}"`);
+  
   Object.values(screens).forEach(screen => {
     screen.classList.remove('active');
   });
   
-  screens[screenName]?.classList.add('active');
+  const targetScreen = screens[screenName];
+  if (targetScreen) {
+    targetScreen.classList.add('active');
+    console.log(`Beamer: Screen "${screenName}" is now active`);
+  } else {
+    console.error(`Beamer: Screen "${screenName}" not found!`);
+  }
+  
+  // Clear canvas when leaving game screen
+  if (screenName !== 'game' && ctx) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
 }
 
 // ==========================================
@@ -414,8 +560,8 @@ function handleGameReset(data) {
   
   // Hide overlays
   hideAnswerOverlay();
-  const qrOverlay = document.getElementById('qr-overlay');
-  if (qrOverlay) qrOverlay.style.display = 'none';
+  const qrPanel = document.getElementById('qr-side-panel');
+  if (qrPanel) qrPanel.classList.add('hidden');
   
   // Show lobby screen
   showScreen('lobby');

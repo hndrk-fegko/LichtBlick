@@ -385,6 +385,12 @@ module.exports = (io, socket) => {
     const host = socket.handshake.headers.host;
     const pinObj = db.getPin();
     const joinUrl = pinObj ? pinObj.joinUrl : `http://${host}/player.html`;
+    
+    logger.debug('Broadcasting beamer:qr_state to beamer room', { 
+      enabled: qrEnabled, 
+      url: joinUrl 
+    });
+    
     io.to('beamer').emit('beamer:qr_state', {
       enabled: qrEnabled,
       visible: qrEnabled, // backward compatibility
