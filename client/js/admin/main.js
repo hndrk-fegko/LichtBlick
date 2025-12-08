@@ -124,6 +124,7 @@ function collectDOM() {
   dom.btnReveal = document.getElementById('btn-reveal');
   dom.btnNextImage = document.getElementById('btn-next-image');
   dom.btnEndGame = document.getElementById('btn-end-game');
+  dom.btnRestartGame = document.getElementById('btn-restart-game');
   
   // Footer
   dom.progressFill = document.getElementById('progress-fill');
@@ -352,6 +353,7 @@ function setupEventListeners() {
   dom.btnReveal?.addEventListener('click', revealImage);
   dom.btnNextImage?.addEventListener('click', nextImage);
   dom.btnEndGame?.addEventListener('click', endGame);
+  dom.btnRestartGame?.addEventListener('click', openRestartGameModal);
   
   // QR-Toggle
   dom.qrToggle?.addEventListener('change', toggleQR);
@@ -1436,6 +1438,55 @@ function endGame() {
 }
 
 /**
+ * 🔁 Spiel neu starten Modal öffnen
+ */
+function openRestartGameModal() {
+  const modal = document.getElementById('restart-game-modal');
+  if (modal) {
+    modal.classList.remove('hidden');
+    
+    // Reset checkboxes
+    const disconnectCheckbox = document.getElementById('restart-disconnect-players');
+    const removePlayedCheckbox = document.getElementById('restart-remove-played');
+    if (disconnectCheckbox) disconnectCheckbox.checked = false;
+    if (removePlayedCheckbox) removePlayedCheckbox.checked = false;
+  }
+}
+
+/**
+ * 🔁 Spiel neu starten ausführen
+ */
+function restartGame() {
+  const disconnectCheckbox = document.getElementById('restart-disconnect-players');
+  const removePlayedCheckbox = document.getElementById('restart-remove-played');
+  
+  const disconnectPlayers = disconnectCheckbox?.checked || false;
+  const removePlayedImages = removePlayedCheckbox?.checked || false;
+  
+  // Modal schließen
+  const modal = document.getElementById('restart-game-modal');
+  if (modal) modal.classList.add('hidden');
+  
+  // Server-Request
+  window.socketAdapter?.emit('admin:restart_game', { 
+    disconnectPlayers, 
+    removePlayedImages 
+  }, (response) => {
+    if (response?.success) {
+      toast('Spiel neu gestartet', 'success');
+      state.phase = 'lobby';
+      state.gameImages = [];
+      state.players = [];
+      loadImages();
+      updateGameControlButtons();
+      renderLeaderboard();
+    } else {
+      toast('Fehler beim Neustarten: ' + (response?.message || 'Unbekannt'), 'error');
+    }
+  });
+}
+
+/**
  * 🔲 QR-Code auf Beamer ein-/ausschalten
  * Socket-Event: admin:toggle_qr
  */
@@ -1493,6 +1544,16 @@ function updateGameControlButtons() {
   if (dom.btnStartGame && dom.btnReveal) {
     dom.btnStartGame.style.display = state.phase === 'lobby' ? 'flex' : 'none';
     dom.btnReveal.style.display = state.phase !== 'lobby' ? 'flex' : 'none';
+  }
+  
+  // Restart button: Nur bei phase='ended' sichtbar
+  if (dom.btnRestartGame) {
+    dom.btnRestartGame.style.display = state.phase === 'ended' ? 'flex' : 'none';
+  }
+  
+  // End button: Verstecken wenn phase='ended'
+  if (dom.btnEndGame) {
+    dom.btnEndGame.style.display = state.phase === 'ended' ? 'none' : 'flex';
   }
   
   // Phase badge
@@ -2155,6 +2216,9 @@ function setupModals() {
   
   // Save settings
   document.getElementById('save-settings')?.addEventListener('click', saveSettings);
+  
+  // Restart Game
+  document.getElementById('confirm-restart-game')?.addEventListener('click', restartGame);
   
   // Danger actions
   document.getElementById('btn-soft-reset')?.addEventListener('click', softReset);

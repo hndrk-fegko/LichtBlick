@@ -202,6 +202,9 @@
           <button class="btn-game btn-end" id="btn-end-game" disabled>
             ⏹️ BEENDEN
           </button>
+          <button class="btn-game btn-restart" id="btn-restart-game" style="display: none;">
+            🔁 NEU STARTEN
+          </button>
         </div>
         
         <div class="control-group-divider"></div>
@@ -465,6 +468,35 @@
       <div class="modal-footer">
         <button class="btn btn-ghost" data-close-modal="settings-modal">Schließen</button>
         <button class="btn btn-primary" id="save-settings">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Restart Game Modal -->
+  <div class="modal-backdrop hidden" id="restart-game-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>🔁 Spiel neu starten</h2>
+        <button class="modal-close" data-close-modal="restart-game-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p>Spiel wird zurückgesetzt und ist wieder spielbar.</p>
+        
+        <label class="checkbox-label">
+          <input type="checkbox" id="restart-disconnect-players">
+          <span>Spieler disconnecten</span>
+        </label>
+        <small class="checkbox-hint">Spieler müssen sich neu anmelden (z.B. für Gemeindefest mit wechselnden Gruppen)</small>
+        
+        <label class="checkbox-label">
+          <input type="checkbox" id="restart-remove-played">
+          <span>Gespielte Bilder entfernen</span>
+        </label>
+        <small class="checkbox-hint">Nur ungespielte Bilder bleiben im Spiel (z.B. für mehrere Runden mit verschiedenen Bildern)</small>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-close-modal="restart-game-modal">Abbrechen</button>
+        <button class="btn btn-primary" id="confirm-restart-game">Neu starten</button>
       </div>
     </div>
   </div>

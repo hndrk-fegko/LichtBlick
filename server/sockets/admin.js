@@ -887,6 +887,129 @@ module.exports = (io, socket) => {
   });
 
   /**
+   * Restart Game:
+   * - Flexible reset for same event with options
+   * - Optional: Disconnect players
+   * - Optional: Remove played images
+   */
+  socket.on('admin:restart_game', (data, callback) => {
+    if (!requireAdmin('admin:restart_game', callback)) return;
+    try {
+      const { disconnectPlayers, removePlayedImages } = data || {};
+      
+      // Get ENDED game (not active lobby/playing)
+      const game = db.db.prepare(
+        'SELECT * FROM games WHERE status = ? ORDER BY created_at DESC LIMIT 1'
+      ).get('ended');
+      
+      if (!game) {
+        logger.game('RESTART GAME failed: No ended game found', {}, 'error');
+        callback && callback({ success: false, message: 'Kein beendetes Spiel gefunden' });
+        return;
+      }
+
+      logger.game('RESTART GAME initiated', { 
+        gameId: game.id, 
+        disconnectPlayers, 
+        removePlayedImages 
+      }, 'warn');
+
+      // Collect stats for logging
+      let stats = { 
+        playersReset: 0, 
+        answersDeleted: 0, 
+        statesDeleted: 0, 
+        imagesReset: 0, 
+        playersDeleted: 0,
+        playedImagesRemoved: 0
+      };
+
+      // Transaction for atomicity
+      const restart = db.db.transaction(() => {
+        // 1. Reset game status to lobby
+        db.db.prepare('UPDATE games SET status = ?, started_at = NULL, ended_at = NULL WHERE id = ?')
+          .run('lobby', game.id);
+        
+        // 2. Clear answers & states (always)
+        const answerResult = db.db.prepare(`
+          DELETE FROM answers WHERE player_id IN (
+            SELECT id FROM players WHERE game_id = ?
+          )
+        `).run(game.id);
+        stats.answersDeleted = answerResult.changes;
+        
+        const stateResult = db.db.prepare('DELETE FROM image_states WHERE game_id = ?')
+          .run(game.id);
+        stats.statesDeleted = stateResult.changes;
+        
+        // 3. Optional: Disconnect players (delete) OR reset scores (keep)
+        if (disconnectPlayers) {
+          const playerResult = db.db.prepare('DELETE FROM players WHERE game_id = ?')
+            .run(game.id);
+          stats.playersDeleted = playerResult.changes;
+        } else {
+          const playerResult = db.db.prepare('UPDATE players SET score = 0 WHERE game_id = ?')
+            .run(game.id);
+          stats.playersReset = playerResult.changes;
+        }
+        
+        // 4. Optional: Remove played images OR reset is_played flags
+        if (removePlayedImages) {
+          const imageResult = db.db.prepare('DELETE FROM game_images WHERE game_id = ? AND is_played = 1')
+            .run(game.id);
+          stats.playedImagesRemoved = imageResult.changes;
+        } else {
+          const imageResult = db.db.prepare('UPDATE game_images SET is_played = 0 WHERE game_id = ?')
+            .run(game.id);
+          stats.imagesReset = imageResult.changes;
+        }
+      });
+      
+      restart();
+      
+      logger.game('RESTART GAME completed', { 
+        gameId: game.id, 
+        disconnectPlayers, 
+        removePlayedImages, 
+        ...stats 
+      }, 'warn');
+      
+      // Notify all clients
+      if (disconnectPlayers) {
+        logger.game('Broadcasting player:force_disconnect', { roomSize: io.sockets.adapter.rooms.get('players')?.size || 0 });
+        io.to('players').emit('player:force_disconnect', { 
+          message: 'Neue Runde startet. Bitte neu einloggen.' 
+        });
+      } else {
+        logger.game('Broadcasting player:game_reset', { roomSize: io.sockets.adapter.rooms.get('players')?.size || 0 });
+        io.to('players').emit('player:game_reset', { 
+          type: 'restart', 
+          message: 'Neue Runde! Dein Score wurde zurückgesetzt.' 
+        });
+      }
+      logger.game('Broadcasting beamer:game_reset', {});
+      io.to('beamer').emit('beamer:game_reset', { type: 'restart' });
+      logger.game('Broadcasting admin:state_update', { socketId: socket.id.substring(0, 8) });
+      socket.emit('admin:state_update', { 
+        gameStatus: 'lobby',
+        message: 'Spiel neu gestartet'
+      });
+      
+      callback && callback({ 
+        success: true, 
+        message: 'Spiel neu gestartet',
+        stats
+      });
+      
+      logger.game('RESTART GAME callback sent', { success: true, stats }, 'info');
+      
+    } catch (error) {
+      logger.game('RESTART GAME failed', { error: error.message, stack: error.stack }, 'error');
+      callback && callback({ success: false, message: error.message });
+    }
+  });
+
+  /**
    * Server Restart:
    * - Gracefully shutdown and restart the Node.js process
    * - Uses exit code 1 to trigger nodemon restart (with --exitcrash)

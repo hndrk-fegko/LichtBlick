@@ -346,10 +346,11 @@ router.post('/verify-pin', async (req, res) => {
 // Game Images Management (Junction Table)
 // ============================================
 
-// GET /api/game-images - Get images assigned to current game
+// GET /api/game-images - Get images assigned to current game (or latest ended game)
 router.get('/game-images', async (req, res) => {
   try {
-    const game = db.getActiveGame();
+    // Try active game first, fallback to latest game (for ended state)
+    const game = db.getActiveGame() || db.getLatestGame();
     if (!game) {
       return res.json({ success: true, data: [] });
     }

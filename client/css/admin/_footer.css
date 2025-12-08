@@ -98,6 +98,27 @@
   color: white;
 }
 
+.btn-restart {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: white;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.btn-restart:hover:not(:disabled) {
+  background: var(--color-success-hover);
+  animation: none;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(22, 163, 74, 0);
+  }
+}
+
 /* Footer Progress in Controls Row */
 .footer-controls .footer-progress {
   margin-left: auto;

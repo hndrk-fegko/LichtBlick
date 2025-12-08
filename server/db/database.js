@@ -278,6 +278,22 @@ class DatabaseManager {
   }
 
   /**
+   * Get latest game (including ended games)
+   * @returns {Object|null} - Latest game or null
+   */
+  getLatestGame() {
+    try {
+      const stmt = this.db.prepare(
+        'SELECT * FROM games ORDER BY created_at DESC LIMIT 1'
+      );
+      return stmt.get();
+    } catch (error) {
+      logger.error('Failed to get latest game', { error: error.message });
+      return null;
+    }
+  }
+
+  /**
    * Create new game
    * @returns {number} - New game ID
    */
