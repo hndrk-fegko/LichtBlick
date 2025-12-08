@@ -136,6 +136,8 @@ Alle Dokumente sind **in sich geschlossen** und können einzeln gelesen werden. 
 
 - **[ADMIN_UI_IMPLEMENTATION.md](./ADMIN_UI_IMPLEMENTATION.md)** - Aktuelle Admin-UI Implementierung
 - **[DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)** - Deployment und Markenname-Ersetzung
+- **[RESET_MANAGEMENT.md](./RESET_MANAGEMENT.md)** - Reset- und Neustart-Funktionalität
+- **[BEAMER_ANALYSIS.md](./BEAMER_ANALYSIS.md)** - Beamer-Display Analyse und Optimierungen
 - **[canvas-verhalten.md](./canvas-verhalten.md)** - Canvas-spezifische Dokumentation
 
 ### Archivierte Dokumente

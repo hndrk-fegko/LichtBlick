@@ -242,6 +242,8 @@ Ausführliche Dokumentation in [`docs/`](docs/):
 | [DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) | SQLite Datenbankstruktur |
 | [DEPLOYMENT_CHECKLIST.md](docs/DEPLOYMENT_CHECKLIST.md) | Deployment & Markenname-Ersetzung |
 | [ANDOCK_PLAN.md](docs/ANDOCK_PLAN.md) | Aktueller Implementierungsplan & Bug-Tracking |
+| [RESET_MANAGEMENT.md](docs/RESET_MANAGEMENT.md) | Reset- und Neustart-Funktionalität |
+| [BEAMER_ANALYSIS.md](docs/BEAMER_ANALYSIS.md) | Beamer-Display Analyse und Optimierungen |
 
 ---
 
