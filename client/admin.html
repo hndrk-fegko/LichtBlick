@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LichtBlick - Admin Command Center</title>
-  <link rel="stylesheet" href="/css/admin.css">
+  <link rel="stylesheet" href="/css/admin.css?v=11">
 </head>
 <body>
   <!-- Auth Screen (wird bei fehlendem Token gezeigt) -->
@@ -81,6 +81,10 @@
             <!-- Canvas Overlay Controls -->
             <div class="canvas-overlay-controls">
               <span class="current-image-info" id="current-image-info">Kein Bild ausgewählt</span>
+              <button class="btn-cinema-mode" id="btn-cinema-mode" title="Kino-Modus (K)">
+                <span class="cinema-icon-expand">🎬</span>
+                <span class="cinema-icon-collapse hidden">✕</span>
+              </button>
             </div>
           </div>
           
@@ -94,35 +98,62 @@
               <span class="control-label">Spotlight</span>
             </div>
             
-            <div class="slider-group">
-              <label class="slider-label">Größe:</label>
-              <input type="range" id="spotlight-size" class="slider-input" min="20" max="200" value="80">
-              <span class="slider-value" id="spotlight-size-value">80px</span>
-            </div>
-            
-            <div class="slider-group">
-              <label class="slider-label">Stärke:</label>
-              <input type="range" id="spotlight-strength" class="slider-input" min="10" max="100" value="100">
-              <span class="slider-value" id="spotlight-strength-value">100%</span>
-            </div>
-            
-            <div class="slider-group">
-              <label class="slider-label">Fokus:</label>
-              <input type="range" id="spotlight-focus" class="slider-input" min="0" max="100" value="70">
-              <span class="slider-value" id="spotlight-focus-value">70%</span>
-            </div>
+            <button class="btn btn-sm btn-ghost" id="btn-spotlight-settings" title="Spotlight Einstellungen">
+              ⚙️
+            </button>
             
             <button class="btn btn-sm btn-ghost" id="btn-clear-spotlights" title="Alle Spotlights löschen">
               🗑️ Clear
             </button>
           </div>
+          
+          <!-- Spotlight Settings Popup (on section level, not inside controls) -->
+          <div class="spotlight-popup hidden" id="spotlight-popup">
+            <div class="spotlight-popup-content">
+              <h4>Spotlight Einstellungen</h4>
+              
+              <div class="slider-group-vertical">
+                <label class="slider-label-vertical">Größe</label>
+                <div class="slider-row">
+                  <input type="range" id="spotlight-size" class="slider-input" min="20" max="200" value="80">
+                  <span class="slider-value" id="spotlight-size-value">80px</span>
+                </div>
+              </div>
+              
+              <div class="slider-group-vertical">
+                <label class="slider-label-vertical">Stärke</label>
+                <div class="slider-row">
+                  <input type="range" id="spotlight-strength" class="slider-input" min="10" max="100" value="100">
+                  <span class="slider-value" id="spotlight-strength-value">100%</span>
+                </div>
+              </div>
+              
+              <div class="slider-group-vertical">
+                <label class="slider-label-vertical">Fokus</label>
+                <div class="slider-row">
+                  <input type="range" id="spotlight-focus" class="slider-input" min="0" max="100" value="70">
+                  <span class="slider-value" id="spotlight-focus-value">70%</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
+        
+        <!-- Cinema Mode Backdrop -->
+        <div class="cinema-backdrop hidden" id="cinema-backdrop"></div>
         
         <!-- Leaderboard Section -->
         <section class="leaderboard-section">
           <div class="leaderboard-header">
             <h2>🏆 Leaderboard</h2>
-            <span class="leaderboard-count" id="leaderboard-count">0 Spieler</span>
+            <div class="leaderboard-header-controls">
+              <span class="leaderboard-count" id="leaderboard-count">0 Spieler</span>
+              <label class="toggle-switch toggle-compact" title="Leaderboard im Endscreen anzeigen">
+                <input type="checkbox" id="leaderboard-toggle" checked>
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="toggle-label">Anzeigen</span>
+            </div>
           </div>
           <div class="leaderboard-list" id="leaderboard-list">
             <div class="leaderboard-empty">
@@ -171,6 +202,9 @@
           <button class="btn-game btn-end" id="btn-end-game" disabled>
             ⏹️ BEENDEN
           </button>
+          <button class="btn-game btn-restart" id="btn-restart-game" style="display: none;">
+            🔁 NEU STARTEN
+          </button>
         </div>
         
         <div class="control-group-divider"></div>
@@ -181,6 +215,16 @@
             <span class="toggle-slider"></span>
           </label>
           <span class="toggle-label">📱 QR</span>
+        </div>
+        
+        <div class="control-group-divider"></div>
+        
+        <div class="control-group cinema-controls">
+          <label class="toggle-switch toggle-compact" title="Kino-Automatik (K)">
+            <input type="checkbox" id="cinema-auto-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="toggle-label">🎬 Kino-Automatik</span>
         </div>
         
         <div class="footer-progress">
@@ -428,6 +472,35 @@
     </div>
   </div>
 
+  <!-- Restart Game Modal -->
+  <div class="modal-backdrop hidden" id="restart-game-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>🔁 Spiel neu starten</h2>
+        <button class="modal-close" data-close-modal="restart-game-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p>Spiel wird zurückgesetzt und ist wieder spielbar.</p>
+        
+        <label class="checkbox-label">
+          <input type="checkbox" id="restart-disconnect-players">
+          <span>Spieler disconnecten</span>
+        </label>
+        <small class="checkbox-hint">Spieler müssen sich neu anmelden (z.B. für Gemeindefest mit wechselnden Gruppen)</small>
+        
+        <label class="checkbox-label">
+          <input type="checkbox" id="restart-remove-played">
+          <span>Gespielte Bilder entfernen</span>
+        </label>
+        <small class="checkbox-hint">Nur ungespielte Bilder bleiben im Spiel (z.B. für mehrere Runden mit verschiedenen Bildern)</small>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-close-modal="restart-game-modal">Abbrechen</button>
+        <button class="btn btn-primary" id="confirm-restart-game">Neu starten</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Help Modal -->
   <div class="modal-backdrop hidden" id="help-modal">
     <div class="modal">
@@ -459,6 +532,6 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/socket-adapter.js?v=2"></script>
   <script src="/js/spotlight-renderer.js?v=2"></script>
-  <script src="/js/admin/main.js?v=4"></script>
+  <script src="/js/admin/main.js?v=11"></script>
 </body>
 </html>
