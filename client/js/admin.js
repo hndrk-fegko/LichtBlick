@@ -143,6 +143,21 @@ function setupEventListeners() {
   document.getElementById('end-game-btn').addEventListener('click', endGame);
   document.getElementById('qr-toggle').addEventListener('change', toggleQR);
   
+  // Leaderboard Toggle
+  const leaderboardToggle = document.getElementById('leaderboard-toggle');
+  if (leaderboardToggle) {
+    leaderboardToggle.addEventListener('change', () => {
+      window.socketAdapter.emit('admin:toggle_leaderboard', { visible: leaderboardToggle.checked }, (response) => {
+        if (response && !response.success) {
+          showToast(response.message || 'Leaderboard-Toggle fehlgeschlagen', 'error');
+          leaderboardToggle.checked = !leaderboardToggle.checked; // Rollback
+        } else if (response && response.success) {
+          showToast(response.message, 'success');
+        }
+      });
+    });
+  }
+  
   // Spotlight Controls
   document.getElementById('spotlight-toggle').addEventListener('change', toggleSpotlight);
   document.getElementById('spotlight-size').addEventListener('input', updateSpotlightSize);
@@ -477,6 +492,13 @@ function handleAdminInitialState(payload) {
   if (qr && typeof qr.enabled === 'boolean') {
     document.getElementById('qr-toggle').checked = qr.enabled;
   }
+  
+  // Set leaderboard toggle state (default: true if not set)
+  const leaderboardToggle = document.getElementById('leaderboard-toggle');
+  if (leaderboardToggle && data.leaderboardVisible !== undefined) {
+    leaderboardToggle.checked = data.leaderboardVisible;
+  }
+  
   if (protection) {
     document.getElementById('admin-protection-toggle').checked = !!protection.enabled;
     updateProtectionStatus(!!protection.enabled);
@@ -1540,6 +1562,12 @@ function handleLeaderboardUpdate(data) {
   if (!data.topPlayers) return;
   
   const container = document.getElementById('leaderboard');
+  const countBadge = document.getElementById('leaderboard-count');
+  
+  // Update count badge
+  const count = data.topPlayers.length;
+  countBadge.textContent = `${count} Spieler`;
+  
   container.innerHTML = '';
   
   if (data.topPlayers.length === 0) {

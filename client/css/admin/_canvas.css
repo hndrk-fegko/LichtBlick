@@ -4,11 +4,12 @@
 
 /* Canvas Section - the full section including controls */
 .canvas-section {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .canvas-wrapper {
@@ -58,11 +59,26 @@
 .spotlight-controls {
   display: flex;
   align-items: center;
-  gap: var(--spacing-lg);
+  gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
   background: var(--color-bg);
   border-top: 1px solid var(--color-border);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+}
+
+/* Control Item (generic for toggle + label) */
+.control-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.control-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 /* Toggle Switch */
@@ -73,20 +89,22 @@
 }
 
 .spotlight-toggle-label {
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
-  color: var(--color-text);
+  color: var(--color-text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
+  white-space: nowrap;
 }
 
 /* Custom Toggle Switch */
 .toggle-switch {
   position: relative;
-  width: 44px;
-  height: 24px;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
 }
 
 .toggle-switch input {
@@ -109,8 +127,8 @@
 .toggle-slider::before {
   content: '';
   position: absolute;
-  height: 18px;
-  width: 18px;
+  height: 14px;
+  width: 14px;
   left: 3px;
   bottom: 3px;
   background: white;
@@ -126,24 +144,25 @@
 
 .toggle-switch input:checked + .toggle-switch-slider::before,
 .toggle-switch input:checked + .toggle-slider::before {
-  transform: translateX(20px);
+  transform: translateX(16px);
 }
 
 /* Slider Controls */
 .slider-group {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-xs);
 }
 
 .slider-label {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
-  min-width: 50px;
+  min-width: 45px;
+  white-space: nowrap;
 }
 
 .slider-input {
-  width: 100px;
+  width: 80px;
   height: 6px;
   appearance: none;
   background: var(--color-border);
@@ -177,6 +196,73 @@
   text-align: right;
 }
 
+/* Spotlight Settings Popup */
+.spotlight-popup {
+  position: absolute;
+  bottom: 40px;
+  left: var(--spacing-md);
+  z-index: 1000;
+  pointer-events: all;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.spotlight-popup.hidden {
+  display: none;
+}
+
+.spotlight-popup-content {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--spacing-md);
+  min-width: 240px;
+}
+
+.spotlight-popup-content h4 {
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.slider-group-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-md);
+}
+
+.slider-group-vertical:last-child {
+  margin-bottom: 0;
+}
+
+.slider-label-vertical {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.slider-row .slider-input {
+  flex: 1;
+  width: auto;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* Spotlight Actions */
 .spotlight-actions {
   display: flex;
@@ -193,7 +279,13 @@
   right: var(--spacing-sm);
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   pointer-events: none;
+  z-index: 10;
+}
+
+.canvas-overlay-controls > * {
+  pointer-events: all;
 }
 
 .current-image-info {
@@ -206,6 +298,97 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Cinema Mode Button */
+.btn-cinema-mode {
+  background: rgba(0,0,0,0.7);
+  color: white;
+  border: none;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-md);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.btn-cinema-mode:hover {
+  background: rgba(0,0,0,0.9);
+  transform: scale(1.05);
+}
+
+.cinema-icon-expand,
+.cinema-icon-collapse {
+  display: inline-block;
+}
+
+/* Cinema Mode Active State */
+.canvas-section.cinema-mode {
+  position: fixed;
+  top: var(--header-height);
+  bottom: var(--footer-height);
+  left: 0;
+  right: 0;
+  z-index: 999;
+  margin: 0;
+  padding: var(--spacing-lg);
+  background: var(--color-bg);
+  animation: zoomIn 0.3s ease-out;
+}
+
+.canvas-section.cinema-mode.closing {
+  animation: zoomOut 0.25s ease-in forwards;
+}
+
+.cinema-backdrop {
+  position: fixed;
+  inset: var(--header-height) 0 var(--footer-height) 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 998;
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.cinema-backdrop.hidden {
+  display: none;
+}
+
+.cinema-backdrop.closing {
+  animation: fadeOut 0.25s ease-in forwards;
+}
+
+@keyframes zoomIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes zoomOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 /* Canvas Empty State */

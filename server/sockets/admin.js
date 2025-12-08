@@ -88,6 +88,9 @@ module.exports = (io, socket) => {
     // Get admin session count
     const adminRoom = io.sockets.adapter.rooms.get('admin');
     const adminSessionCount = adminRoom ? adminRoom.size : 1;
+    
+    // Get leaderboard visibility (default: true)
+    const leaderboardVisible = db.getConfig('leaderboardVisible') !== false;
 
     socket.emit('admin:initial_state', {
       success: true,
@@ -97,6 +100,7 @@ module.exports = (io, socket) => {
         playerCount: players.length,
         pin: { pin: adminPin, joinUrl: playerJoinUrl },
         qr: { enabled: qrVisible },
+        leaderboardVisible,
         currentImageId,
         protection,
         adminSessionCount
@@ -400,6 +404,32 @@ module.exports = (io, socket) => {
       callback({ 
         success: true, 
         message: qrEnabled ? 'QR-Code eingeblendet' : 'QR-Code ausgeblendet' 
+      });
+    }
+  });
+
+  // Admin toggles Leaderboard visibility
+  socket.on('admin:toggle_leaderboard', ({ visible }, callback) => {
+    if (!socket.rooms.has('admin')) {
+      if (callback) callback({ success: false, message: 'Nicht authentifiziert' });
+      return;
+    }
+    const leaderboardVisible = !!visible;
+    logger.info('Admin toggled Leaderboard', { visible: leaderboardVisible });
+    db.setConfig('leaderboardVisible', leaderboardVisible);
+    
+    logger.debug('Broadcasting beamer:leaderboard_visibility to beamer room', { 
+      visible: leaderboardVisible 
+    });
+    
+    io.to('beamer').emit('beamer:leaderboard_visibility', {
+      visible: leaderboardVisible
+    });
+    
+    if (callback) {
+      callback({ 
+        success: true, 
+        message: leaderboardVisible ? 'Leaderboard wird im Endscreen angezeigt' : 'Leaderboard ausgeblendet' 
       });
     }
   });

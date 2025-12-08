@@ -41,6 +41,9 @@ const state = {
   // QR
   qrEnabled: false,
   
+  // Leaderboard
+  leaderboardVisible: true, // Default: angezeigt
+  
   // PIN Protection
   pinEnabled: false,
   pinExpiresAt: null,
@@ -54,7 +57,11 @@ const state = {
   // UI
   sidebarOpen: false,
   contextMenuTarget: null,
-  draggedGameImage: null
+  draggedGameImage: null,
+  
+  // Cinema Mode
+  cinemaMode: false,
+  cinemaAutoRestart: false
 };
 
 // Throttle for spotlight updates
@@ -85,6 +92,10 @@ function collectDOM() {
   dom.canvas = document.getElementById('spotlight-canvas');
   dom.ctx = dom.canvas?.getContext('2d');
   dom.currentImageInfo = document.getElementById('current-image-info');
+  dom.canvasSection = document.querySelector('.canvas-section');
+  dom.btnCinemaMode = document.getElementById('btn-cinema-mode');
+  dom.cinemaBackdrop = document.getElementById('cinema-backdrop');
+  dom.cinemaAutoToggle = document.getElementById('cinema-auto-toggle');
   
   // Spotlight Controls
   dom.spotlightToggle = document.getElementById('spotlight-toggle');
@@ -96,6 +107,8 @@ function collectDOM() {
   dom.spotlightFocusValue = document.getElementById('spotlight-focus-value');
   dom.revealOverlayToggle = document.getElementById('reveal-overlay-toggle');
   dom.btnClearSpotlights = document.getElementById('btn-clear-spotlights');
+  dom.btnSpotlightSettings = document.getElementById('btn-spotlight-settings');
+  dom.spotlightPopup = document.getElementById('spotlight-popup');
   
   // Leaderboard
   dom.leaderboardList = document.getElementById('leaderboard-list');
@@ -116,6 +129,9 @@ function collectDOM() {
   dom.progressFill = document.getElementById('progress-fill');
   dom.progressLabel = document.getElementById('progress-label');
   dom.qrToggle = document.getElementById('qr-toggle');
+  
+  // Leaderboard
+  dom.leaderboardToggle = document.getElementById('leaderboard-toggle');
   
   // Auth
   dom.authScreen = document.getElementById('auth-screen');
@@ -311,6 +327,14 @@ function setupEventListeners() {
   
   dom.btnClearSpotlights?.addEventListener('click', clearAllSpotlights);
   
+  // Spotlight Settings Popup
+  dom.btnSpotlightSettings?.addEventListener('click', toggleSpotlightPopup);
+  
+  // Cinema Mode
+  dom.btnCinemaMode?.addEventListener('click', toggleCinemaMode);
+  dom.cinemaBackdrop?.addEventListener('click', exitCinemaMode);
+  dom.cinemaAutoToggle?.addEventListener('change', handleCinemaAutoToggle);
+  
   // Canvas Events
   dom.canvas?.addEventListener('mousedown', startDrawing);
   dom.canvas?.addEventListener('mousemove', handleMouseMove);
@@ -331,6 +355,9 @@ function setupEventListeners() {
   
   // QR-Toggle
   dom.qrToggle?.addEventListener('change', toggleQR);
+  
+  // Leaderboard-Toggle
+  dom.leaderboardToggle?.addEventListener('change', toggleLeaderboard);
   
   // Game Strip Navigation
   dom.stripNavLeft?.addEventListener('click', () => scrollStrip(-200));
@@ -520,13 +547,21 @@ function hideAuth() {
 // ============================================================
 function handleAdminInitialState(payload) {
   if (!payload?.success) return;
-  const { pin, protection, players, playerCount, game, currentImageId, qr, adminSessionCount } = payload.data || {};
+  const { pin, protection, players, playerCount, game, currentImageId, qr, adminSessionCount, leaderboardVisible } = payload.data || {};
   
   // QR-State
   if (qr !== undefined) {
     state.qrEnabled = qr.enabled;
     if (dom.qrToggle) {
       dom.qrToggle.checked = qr.enabled;
+    }
+  }
+  
+  // Leaderboard-State
+  if (leaderboardVisible !== undefined) {
+    state.leaderboardVisible = leaderboardVisible;
+    if (dom.leaderboardToggle) {
+      dom.leaderboardToggle.checked = leaderboardVisible;
     }
   }
   
@@ -1118,6 +1153,148 @@ function clearAllSpotlights() {
   redrawCanvas();
 }
 
+/**
+ * 🔧 Spotlight Settings Popup Toggle
+ */
+function toggleSpotlightPopup(event) {
+  event?.stopPropagation();
+  
+  if (!dom.spotlightPopup) return;
+  
+  const isHidden = dom.spotlightPopup.classList.contains('hidden');
+  
+  if (isHidden) {
+    // Show popup
+    dom.spotlightPopup.classList.remove('hidden');
+    
+    // Add click-outside handler
+    setTimeout(() => {
+      document.addEventListener('click', handleClickOutsidePopup);
+    }, 0);
+  } else {
+    // Hide popup
+    closeSpotlightPopup();
+  }
+}
+
+function closeSpotlightPopup() {
+  if (!dom.spotlightPopup) return;
+  
+  dom.spotlightPopup.classList.add('hidden');
+  document.removeEventListener('click', handleClickOutsidePopup);
+}
+
+function handleClickOutsidePopup(event) {
+  if (!dom.spotlightPopup || !dom.btnSpotlightSettings) return;
+  
+  const isClickInsidePopup = dom.spotlightPopup.contains(event.target);
+  const isClickOnButton = dom.btnSpotlightSettings.contains(event.target);
+  
+  if (!isClickInsidePopup && !isClickOnButton) {
+    closeSpotlightPopup();
+  }
+}
+
+// ============================================================
+// CINEMA MODE
+// ============================================================
+
+/**
+ * 🎬 Toggle Cinema Mode (Manueller Overlay-Button)
+ */
+function toggleCinemaMode() {
+  if (state.cinemaMode) {
+    exitCinemaMode();
+  } else {
+    enterCinemaMode();
+  }
+}
+
+function enterCinemaMode() {
+  if (!dom.canvasSection || !dom.cinemaBackdrop) return;
+  
+  state.cinemaMode = true;
+  state.cinemaModeWasActive = true;
+  
+  dom.canvasSection.classList.add('cinema-mode');
+  dom.canvasBackdrop.classList.remove('hidden');
+  
+  // Update footer indicator
+  if (dom.cinemaIndicator) {
+    dom.cinemaIndicator.classList.add('active');
+  }
+  
+  // Toggle button icons
+  const expandIcon = dom.btnCinemaMode?.querySelector('.cinema-icon-expand');
+  const collapseIcon = dom.btnCinemaMode?.querySelector('.cinema-icon-collapse');
+  if (expandIcon) expandIcon.classList.add('hidden');
+  if (collapseIcon) collapseIcon.classList.remove('hidden');
+  
+  // Resize canvas
+  setTimeout(() => {
+    if (state.canvasImage) {
+      resizeCanvas();
+      redrawCanvas();
+    }
+  }, 100);
+}
+
+function exitCinemaMode() {
+  if (!dom.canvasSection || !dom.cinemaBackdrop) return;
+  
+  state.cinemaMode = false;
+  
+  // Add closing animation
+  dom.canvasSection.classList.add('closing');
+  dom.cinemaBackdrop.classList.add('closing');
+  
+  // Wait for animation to complete
+  setTimeout(() => {
+    dom.canvasSection.classList.remove('cinema-mode', 'closing');
+    dom.cinemaBackdrop.classList.add('hidden');
+    dom.cinemaBackdrop.classList.remove('closing');
+    
+    // Toggle button icons
+    const expandIcon = dom.btnCinemaMode?.querySelector('.cinema-icon-expand');
+    const collapseIcon = dom.btnCinemaMode?.querySelector('.cinema-icon-collapse');
+    if (expandIcon) expandIcon.classList.remove('hidden');
+    if (collapseIcon) collapseIcon.classList.add('hidden');
+    
+    // Resize canvas
+    if (state.canvasImage) {
+      resizeCanvas();
+      redrawCanvas();
+    }
+  }, 250); // Match animation duration
+}
+
+/**
+ * 🔄 Handle Kino-Automatik Toggle (Footer-Switch)
+ */
+function handleCinemaAutoToggle() {
+  const newState = dom.cinemaAutoToggle?.checked || false;
+  state.cinemaAutoRestart = newState;
+  
+  // Wenn Kino-Automatik deaktiviert wird UND Kino ist aktiv → Kino beenden
+  if (!newState && state.cinemaMode) {
+    exitCinemaMode();
+  }
+  
+  toast(newState ? 'Kino-Automatik aktiviert' : 'Kino-Automatik deaktiviert', 'success');
+}
+
+/**
+ * Auto-Restart Cinema Mode nach Bildwechsel
+ * Wird von handleImageChange() aufgerufen
+ */
+function restartCinemaModeIfNeeded() {
+  if (state.cinemaAutoRestart && state.phase === 'playing' && state.currentImageId) {
+    setTimeout(() => {
+      enterCinemaMode();
+    }, 300);
+  }
+}
+
 // Spotlight settings persistence
 function saveSpotlightSettings() {
   try {
@@ -1205,6 +1382,9 @@ function revealImage() {
       updateGameControlButtons();
       renderGameStrip();
       preselectNextImage();
+      
+      // Cinema Mode beenden beim Reveal
+      if (state.cinemaMode) exitCinemaMode();
     } else {
       alert('Fehler beim Aufdecken: ' + (response?.message || 'Unbekannt'));
     }
@@ -1233,6 +1413,9 @@ function nextImage() {
       loadImageToCanvas(targetGI.image_id);
       updateGameControlButtons();
       renderGameStrip();
+      
+      // Auto-Restart Cinema Mode wenn vorher aktiv
+      restartCinemaModeIfNeeded();
     } else {
       alert('Fehler: ' + response.message);
     }
@@ -1267,6 +1450,25 @@ function toggleQR() {
       // Revert checkbox on error
       if (dom.qrToggle) dom.qrToggle.checked = state.qrEnabled;
       toast('Fehler: ' + (response?.message || 'QR-Toggle fehlgeschlagen'), 'error');
+    }
+  });
+}
+
+/**
+ * 🏆 Leaderboard-Anzeige im Endscreen ein-/ausschalten
+ * Socket-Event: admin:toggle_leaderboard
+ */
+function toggleLeaderboard() {
+  const newState = dom.leaderboardToggle?.checked ?? !state.leaderboardVisible;
+  
+  window.socketAdapter?.emit('admin:toggle_leaderboard', { visible: newState }, (response) => {
+    if (response?.success) {
+      state.leaderboardVisible = newState;
+      toast(newState ? 'Leaderboard wird angezeigt' : 'Leaderboard ausgeblendet', 'success');
+    } else {
+      // Revert checkbox on error
+      if (dom.leaderboardToggle) dom.leaderboardToggle.checked = state.leaderboardVisible;
+      toast('Fehler: ' + (response?.message || 'Leaderboard-Toggle fehlgeschlagen'), 'error');
     }
   });
 }
@@ -2252,7 +2454,11 @@ function handleKeyboard(e) {
     case 'Space':
       e.preventDefault();
       if (state.phase === 'lobby') startGame();
-      else if (state.phase === 'playing') revealImage();
+      else if (state.phase === 'playing') {
+        revealImage();
+        // Reveal beendet Cinema Mode
+        if (state.cinemaMode) exitCinemaMode();
+      }
       break;
     case 'Enter':
       e.preventDefault();
@@ -2266,9 +2472,21 @@ function handleKeyboard(e) {
       e.preventDefault();
       selectNextImage();
       break;
+    case 'KeyK':
+      e.preventDefault();
+      // Toggle Kino-Automatik
+      if (dom.cinemaAutoToggle) {
+        dom.cinemaAutoToggle.checked = !dom.cinemaAutoToggle.checked;
+        handleCinemaAutoToggle();
+      }
+      break;
     case 'KeyQ':
       e.preventDefault();
-      toggleQR();
+      // Toggle QR-Code Anzeige
+      if (dom.qrToggle) {
+        dom.qrToggle.checked = !dom.qrToggle.checked;
+        toggleQR();
+      }
       break;
     case 'KeyB':
       e.preventDefault();

@@ -138,7 +138,7 @@ function isEventAllowedInPhase(eventName) {
     },
     // ENDED: Leaderboard, Reset - NO QR
     'ended': {
-      allowed: ['game:leaderboard_update', 'beamer:game_reset', 'game:phase_change'],
+      allowed: ['game:leaderboard_update', 'beamer:leaderboard_visibility', 'beamer:game_reset', 'game:phase_change'],
       denied: ['beamer:spotlight', 'beamer:spotlight_click', 'beamer:reveal_image', 'beamer:image_changed', 'beamer:qr_state']
     }
   };
@@ -223,6 +223,7 @@ function setupSocketListeners() {
   socket.on('beamer:clear_spotlight', clearSpotlight);
   socket.on('beamer:qr_state', handleQRState);
   socket.on('game:leaderboard_update', handleLeaderboardUpdate);
+  socket.on('beamer:leaderboard_visibility', handleLeaderboardVisibility);
 }
 
 function handleInitialState(data) {
@@ -451,6 +452,25 @@ function generateQRCode(url) {
     ctx.fillText('QR Fehler', 150, 140);
   };
   img.src = apiUrl;
+}
+
+function handleLeaderboardVisibility(data) {
+  console.log('🏆 Beamer: Leaderboard visibility changed', data);
+  
+  // Validate: Only allowed in ENDED phase
+  if (!isEventAllowedInPhase('beamer:leaderboard_visibility')) {
+    console.warn('   → Ignoring leaderboard visibility change, not in ended phase');
+    return;
+  }
+  
+  const leaderboardContainer = document.getElementById('leaderboard');
+  if (data.visible) {
+    leaderboardContainer.style.display = 'flex';
+    console.log('   → Leaderboard angezeigt');
+  } else {
+    leaderboardContainer.style.display = 'none';
+    console.log('   → Leaderboard ausgeblendet');
+  }
 }
 
 function handleLeaderboardUpdate(data) {

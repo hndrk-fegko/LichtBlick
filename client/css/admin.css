@@ -124,6 +124,34 @@ h2 {
   color: var(--text);
 }
 
+/* Section Header with Badge and Controls */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.section-title-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.section-title-group h2 {
+  margin: 0;
+}
+
+.info-badge {
+  background: #3b82f6;
+  color: white;
+  padding: 0.4rem 0.9rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* Connection Status */
 .connection-status {
   padding: 0.5rem 1rem;

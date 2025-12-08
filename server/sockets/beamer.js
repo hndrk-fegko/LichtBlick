@@ -88,6 +88,12 @@ module.exports = (io, socket) => {
         spotlight
       });
       
+      // Send leaderboard visibility state
+      const leaderboardVisible = db.getConfig('leaderboardVisible') !== false; // Default: true
+      socket.emit('beamer:leaderboard_visibility', {
+        visible: leaderboardVisible
+      });
+      
       // Send lobby update with player list
       const players = db.getLeaderboard(game.id, 100);
       socket.emit('game:lobby_update', {
