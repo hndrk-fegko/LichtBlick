@@ -50,12 +50,20 @@ async function startServer() {
   const app = express();
   const server = http.createServer(app);
 
-  // Initialize Socket.IO
+  // Initialize Socket.IO with Plesk-compatible settings
   const io = new Server(server, {
     cors: {
       origin: process.env.CORS_ORIGIN || '*',
-      methods: ['GET', 'POST']
-    }
+      methods: ['GET', 'POST'],
+      credentials: true
+    },
+    // Plesk Reverse Proxy compatibility
+    transports: ['polling', 'websocket'], // Try polling first
+    allowEIO3: true, // Backward compatibility
+    pingTimeout: 60000,
+    pingInterval: 25000,
+    // Trust proxy for correct client IP
+    path: '/socket.io/'
   });
 
   // Make io available to routes
@@ -64,6 +72,9 @@ async function startServer() {
   // Make admin token available to routes and sockets
   app.set('adminToken', ADMIN_TOKEN);
   io.adminToken = ADMIN_TOKEN;
+
+  // Trust Plesk Reverse Proxy (wichtig für HTTPS und Client-IP)
+  app.set('trust proxy', 1);
 
   // Middleware
   app.use(logger.httpMiddleware()); // HTTP request logging with request IDs

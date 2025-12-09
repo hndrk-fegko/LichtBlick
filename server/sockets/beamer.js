@@ -9,7 +9,7 @@ const db = require('../db');
 
 module.exports = (io, socket) => {
   // Beamer connects
-  socket.on('beamer:connect', () => {
+  socket.on('beamer:connect', async () => {
     socket.join('beamer');
     socket.wasInBeamerRoom = true; // Track for disconnect handler
     logger.info('Beamer joined', { socketId: socket.id });
@@ -19,7 +19,7 @@ module.exports = (io, socket) => {
     
     try {
       // Get current game state (including ended games)
-      const game = db.getLatestGame() || { id: 1, status: 'lobby' };
+      const game = await db.getLatestGame() || { id: 1, status: 'lobby' };
       const playerCount = db.db.prepare(
         'SELECT COUNT(*) as count FROM players WHERE game_id = ?'
       ).get(game.id);
@@ -47,7 +47,7 @@ module.exports = (io, socket) => {
       
       // Send lobby start image if in lobby phase
       if (game.status === 'lobby') {
-        const startImage = db.getStartImage();
+        const startImage = await db.getStartImage();
         if (startImage) {
           socket.emit('beamer:image_roles_changed', {
             startImage: {
@@ -114,7 +114,7 @@ module.exports = (io, socket) => {
         }
         
         // Send final leaderboard
-        const leaderboard = db.getLeaderboard(game.id, 10);
+        const leaderboard = await db.getLeaderboard(game.id, 10);
         socket.emit('game:leaderboard_update', {
           topPlayers: leaderboard.map(p => ({ 
             name: p.name, 
@@ -126,8 +126,8 @@ module.exports = (io, socket) => {
       }
       
       // Send current QR state
-      const qrEnabled = db.getConfig('qrEnabled') || false;
-      const storedUrl = db.getPlayerJoinUrl();
+      const qrEnabled = await db.getConfig('qrEnabled') || false;
+      const storedUrl = await db.getPlayerJoinUrl();
       const host = socket.handshake.headers.host;
       const joinUrl = storedUrl || `http://${host}/player.html`;
       
@@ -144,21 +144,21 @@ module.exports = (io, socket) => {
       });
       
       // Send current settings
-      const darkMode = db.getConfig('darkMode') || false;
-      const spotlight = db.getConfig('spotlight') || {};
+      const darkMode = await db.getConfig('darkMode') || false;
+      const spotlight = await db.getConfig('spotlight') || {};
       socket.emit('beamer:settings_changed', {
         darkMode,
         spotlight
       });
       
       // Send leaderboard visibility state
-      const leaderboardVisible = db.getConfig('leaderboardVisible') !== false; // Default: true
+      const leaderboardVisible = await db.getConfig('leaderboardVisible') !== false; // Default: true
       socket.emit('beamer:leaderboard_visibility', {
         visible: leaderboardVisible
       });
       
       // Send lobby update with player list
-      const players = db.getLeaderboard(game.id, 100);
+      const players = await db.getLeaderboard(game.id, 100);
       socket.emit('game:lobby_update', {
         players: players.map(p => ({ id: p.id, name: p.name, score: p.score })),
         totalPlayers: players.length

@@ -1,11 +1,13 @@
 name: Playwright E2E Tests
 
+# ⚠️ DEAKTIVIERT - Manuelles Testing erforderlich
+# Grund: Browser-Installation auf GitHub Actions zu langsam/fehleranfällig
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
-  workflow_dispatch:
+  workflow_dispatch:  # Nur manuell auslösbar
+  # push:
+  #   branches: [ main, develop ]
+  # pull_request:
+  #   branches: [ main, develop ]
 
 jobs:
   test:

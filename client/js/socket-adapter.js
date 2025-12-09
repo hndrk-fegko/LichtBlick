@@ -11,7 +11,13 @@ class SocketAdapter {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5
+      reconnectionAttempts: 5,
+      // Plesk compatibility - try polling first, then upgrade to WebSocket
+      transports: ['polling', 'websocket'],
+      path: '/socket.io/',
+      // Force secure connection on HTTPS
+      secure: window.location.protocol === 'https:',
+      rejectUnauthorized: false // For self-signed certs (development only)
     });
     
     this.connected = false;

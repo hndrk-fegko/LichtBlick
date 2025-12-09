@@ -28,9 +28,9 @@ module.exports = (io, socket) => {
       }
       
       // Get or create active game
-      let game = db.getActiveGame();
+      let game = await db.getActiveGame();
       if (!game) {
-        const gameId = db.createGame();
+        const gameId = await db.createGame();
         game = { id: gameId, status: 'lobby' };
       }
       
@@ -43,7 +43,7 @@ module.exports = (io, socket) => {
       }
       
       // Create player in database
-      const playerId = db.createPlayer(game.id, name, socket.id);
+      const playerId = await db.createPlayer(game.id, name, socket.id);
       
       socket.join('players');
       socket.playerId = playerId;
@@ -53,7 +53,7 @@ module.exports = (io, socket) => {
       logger.game('Player joined', { playerId, name, gameId: game.id, socketId: socket.id });
       
       // Get all players for lobby update
-      const players = db.getLeaderboard(game.id, 100); // Get all players
+      const players = await db.getLeaderboard(game.id, 100); // Get all players
       
       // Notify admin
       io.to('admin').emit('admin:player_joined', {
@@ -111,7 +111,7 @@ module.exports = (io, socket) => {
       }
       
       // Check if game is in playing phase
-      const game = db.getActiveGame();
+      const game = await db.getActiveGame();
       if (!game || game.status !== 'playing') {
         return callback({ success: false, message: 'Game not active' });
       }
@@ -204,14 +204,14 @@ module.exports = (io, socket) => {
       socket.gameId = player.game_id;
       
       // Get game phase
-      const game = db.getActiveGame();
+      const game = await db.getActiveGame();
       const phase = game ? game.status : 'lobby';
       
       logger.game('Player reconnected', { playerId, name: player.name, phase, socketId: socket.id });
       
       // Send lobby update to reconnected player so they see current player count
       if (game) {
-        const players = db.getLeaderboard(game.id, 100);
+        const players = await db.getLeaderboard(game.id, 100);
         socket.emit('game:lobby_update', {
           players: players.map(p => ({ id: p.id, name: p.name, score: p.score })),
           totalPlayers: players.length
@@ -234,14 +234,14 @@ module.exports = (io, socket) => {
   });
 
   // Player keep-alive (sent every 30 seconds from client)
-  socket.on('player:keep_alive', () => {
+  socket.on('player:keep_alive', async () => {
     if (socket.playerId) {
-      db.updatePlayerKeepAlive(socket.playerId);
+      await db.updatePlayerKeepAlive(socket.playerId);
     }
   });
 
   // Player leaves game voluntarily
-  socket.on('player:leave', ({ playerId }, callback) => {
+  socket.on('player:leave', async ({ playerId }, callback) => {
     try {
       if (!playerId) {
         return callback && callback({ success: false, message: 'No player ID' });
@@ -256,10 +256,10 @@ module.exports = (io, socket) => {
       logger.info('Player left game', { playerId });
       
       // Get game for broadcast
-      const game = db.getActiveGame();
+      const game = await db.getActiveGame();
       if (game) {
-        const activeCount = db.getActivePlayerCount(game.id);
-        const players = db.getLeaderboard(game.id, 100);
+        const activeCount = await db.getActivePlayerCount(game.id);
+        const players = await db.getLeaderboard(game.id, 100);
         io.emit('game:lobby_update', {
           players: players.map(p => ({ id: p.id, name: p.name, score: p.score })),
           totalPlayers: activeCount
@@ -297,14 +297,14 @@ let cleanupInterval = null;
 module.exports.startCleanupInterval = (io) => {
   if (cleanupInterval) return; // Already running
   
-  cleanupInterval = setInterval(() => {
-    const game = db.getActiveGame();
+  cleanupInterval = setInterval(async () => {
+    const game = await db.getActiveGame();
     if (game) {
-      const count = db.softDeleteInactivePlayers(game.id);
+      const count = await db.softDeleteInactivePlayers(game.id);
       if (count > 0) {
         logger.info('Cleaned up inactive players', { count });
         // Send lobby update to all clients after cleanup
-        const players = db.getLeaderboard(game.id, 100);
+        const players = await db.getLeaderboard(game.id, 100);
         io.emit('game:lobby_update', {
           players: players.map(p => ({ id: p.id, name: p.name, score: p.score })),
           totalPlayers: players.length

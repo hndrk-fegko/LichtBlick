@@ -3,6 +3,8 @@
   "version": "3.0.0",
   "description": "LichtBlick - Multiplayer Game with Playwright E2E Tests",
   "scripts": {
+    "setup": "node scripts/setup-plesk.js",
+    "get-token": "node scripts/get-admin-token.js",
     "test:e2e": "playwright test --config=tests/playwright.config.js",
     "test:e2e:headed": "playwright test --config=tests/playwright.config.js --headed",
     "test:e2e:debug": "playwright test --config=tests/playwright.config.js --debug",

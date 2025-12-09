@@ -75,23 +75,23 @@ module.exports = (io, socket) => {
     }
     return true;
   }
-  function emitInitialState() {
+  async function emitInitialState() {
     const host = socket.handshake.headers.host;
     // Use getLatestGame to include ended games
-    const game = db.getLatestGame() || { id: db.createGame(), status: 'lobby' };
-    const players = db.getLeaderboard(game.id, 100);
-    const adminPin = db.getConfig('adminPin') || '1234';
-    const qrVisible = db.getConfig('qrEnabled') || false;
-    const currentImageId = db.getConfig('currentImageId') || null;
-    const protection = db.getProtection();
-    const playerJoinUrl = db.getPlayerJoinUrl() || `http://${host}/player.html`;
+    const game = await db.getLatestGame() || { id: await db.createGame(), status: 'lobby' };
+    const players = await db.getLeaderboard(game.id, 100);
+    const adminPin = await db.getConfig('adminPin') || '1234';
+    const qrVisible = await db.getConfig('qrEnabled') || false;
+    const currentImageId = await db.getConfig('currentImageId') || null;
+    const protection = await db.getProtection();
+    const playerJoinUrl = await db.getPlayerJoinUrl() || `http://${host}/player.html`;
     
     // Get admin session count
     const adminRoom = io.sockets.adapter.rooms.get('admin');
     const adminSessionCount = adminRoom ? adminRoom.size : 1;
     
     // Get leaderboard visibility (default: true)
-    const leaderboardVisible = db.getConfig('leaderboardVisible') !== false;
+    const leaderboardVisible = await db.getConfig('leaderboardVisible') !== false;
 
     socket.emit('admin:initial_state', {
       success: true,
@@ -111,7 +111,7 @@ module.exports = (io, socket) => {
 
   // Allow connect without auth when protection is disabled
   // BUT always require valid URL token!
-  socket.on('admin:connect', ({ token } = {}) => {
+  socket.on('admin:connect', async ({ token } = {}) => {
     try {
       // ALWAYS validate URL token first
       const validToken = io.adminToken;
@@ -128,7 +128,7 @@ module.exports = (io, socket) => {
       }
       
       // Token valid - check if PIN protection is enabled
-      const protection = db.getProtection();
+      const protection = await db.getProtection();
       if (protection.enabled) {
         // Protection enabled: require PIN auth after token
         socket.hasValidToken = true; // Mark that URL token was valid
@@ -144,7 +144,7 @@ module.exports = (io, socket) => {
       socket.wasInAdminRoom = true;
       socket.hasValidToken = true;
       logger.info('Admin joined (valid token, no PIN required)', { socketId: socket.id });
-      emitInitialState();
+      await emitInitialState();
       if (io.broadcastAdminCount) io.broadcastAdminCount();
     } catch (error) {
       logger.error('Admin connect failed', { error: error.message });
@@ -152,7 +152,7 @@ module.exports = (io, socket) => {
   });
 
   // Admin authentication with PIN (requires valid URL token first!)
-  socket.on('admin:auth', ({ pin, token }, callback) => {
+  socket.on('admin:auth', async ({ pin, token }, callback) => {
     try {
       // Must have valid URL token (either from admin:connect or passed here)
       if (!socket.hasValidToken) {
@@ -166,14 +166,14 @@ module.exports = (io, socket) => {
         socket.hasValidToken = true;
       }
       
-      const protection = db.getProtection();
-      const storedPin = db.getConfig('adminPin') || '1234';
+      const protection = await db.getProtection();
+      const storedPin = await db.getConfig('adminPin') || '1234';
       // If protection enabled and not expired, require correct pin
       if (protection.enabled) {
         const now = Math.floor(Date.now() / 1000);
         if (protection.expiresAt && protection.expiresAt <= now) {
           // auto disable protection when expired
-          db.setProtection(false, null);
+          await db.setProtection(false, null);
         } else if (pin !== storedPin) {
           return callback && callback({ success: false, message: 'PIN falsch' });
         }
@@ -185,7 +185,7 @@ module.exports = (io, socket) => {
       }
       socket.wasInAdminRoom = true; // Mark for disconnect tracking
       logger.info('Admin authenticated', { socketId: socket.id });
-      emitInitialState();
+      await emitInitialState();
       // Broadcast updated admin count to all admins
       if (io.broadcastAdminCount) io.broadcastAdminCount();
       callback && callback({ success: true });
@@ -196,7 +196,7 @@ module.exports = (io, socket) => {
   });
 
   // Update admin PIN
-  socket.on('admin:update_pin', ({ pin }, callback) => {
+  socket.on('admin:update_pin', async ({ pin }, callback) => {
     try {
       if (!socket.authenticated) {
         return callback && callback({ success: false, message: 'Nicht authentifiziert' });
@@ -204,7 +204,7 @@ module.exports = (io, socket) => {
       if (typeof pin !== 'string' || pin.length < 4 || pin.length > 10) {
         return callback && callback({ success: false, message: 'PIN ungültig (4-10 Zeichen)' });
       }
-      db.setConfig('adminPin', pin);
+      await db.setConfig('adminPin', pin);
       logger.info('Admin PIN updated');
       callback && callback({ success: true });
     } catch (error) {
@@ -214,14 +214,14 @@ module.exports = (io, socket) => {
   });
 
   // Toggle protection
-  socket.on('admin:toggle_protection', ({ enabled }, callback) => {
+  socket.on('admin:toggle_protection', async ({ enabled }, callback) => {
     try {
       if (!socket.authenticated) {
         return callback && callback({ success: false, message: 'Nicht authentifiziert' });
       }
       const value = !!enabled;
       const expiresAt = value ? Math.floor(Date.now() / 1000) + 2 * 60 * 60 : null; // 2 hours
-      db.setProtection(value, expiresAt);
+      await db.setProtection(value, expiresAt);
       logger.info('Admin protection toggled', { enabled: value, expiresAt });
       callback && callback({ success: true });
       socket.emit('admin:protection_changed', { enabled: value, expiresAt });
@@ -232,7 +232,7 @@ module.exports = (io, socket) => {
   });
 
   // Store current host for player join
-  socket.on('admin:set_join_host', ({ host }, callback) => {
+  socket.on('admin:set_join_host', async ({ host }, callback) => {
     try {
       if (!socket.authenticated) {
         return callback && callback({ success: false, message: 'Nicht authentifiziert' });
@@ -240,9 +240,9 @@ module.exports = (io, socket) => {
       if (typeof host !== 'string' || !host.length) {
         return callback && callback({ success: false, message: 'Host ungültig' });
       }
-      db.savePlayerJoinHost(host);
-      const url = db.getPlayerJoinUrl() || `http://${socket.handshake.headers.host}/player.html`;
-      io.to('beamer').emit('beamer:qr_state', { enabled: db.getConfig('qrEnabled') || false, url });
+      await db.savePlayerJoinHost(host);
+      const url = await db.getPlayerJoinUrl() || `http://${socket.handshake.headers.host}/player.html`;
+      io.to('beamer').emit('beamer:qr_state', { enabled: await db.getConfig('qrEnabled') || false, url });
       callback && callback({ success: true });
     } catch (error) {
       logger.error('Set join host failed', { error: error.message });
@@ -251,15 +251,15 @@ module.exports = (io, socket) => {
   });
 
   // Helper: load image and broadcast
-  function loadAndBroadcastImage(imageId, broadcastPhase = null) {
+  async function loadAndBroadcastImage(imageId, broadcastPhase = null) {
     const stmt = db.db.prepare('SELECT * FROM images WHERE id = ?');
     const image = stmt.get(imageId);
     if (!image) {
       socket.emit('error', { message: 'Image not found' });
       return null;
     }
-    db.setConfig('currentImageId', imageId);
-    const game = db.getActiveGame();
+    await db.setConfig('currentImageId', imageId);
+    const game = await db.getActiveGame();
     if (game) {
       const stateStmt = db.db.prepare(`
         INSERT INTO image_states (game_id, image_id, started_at)
@@ -282,13 +282,13 @@ module.exports = (io, socket) => {
   }
 
   // Start game
-  socket.on('admin:start_game', ({ imageId }, callback) => {
+  socket.on('admin:start_game', async ({ imageId }, callback) => {
     if (!requireAdmin('admin:start_game', callback)) return;
     try {
-      const game = db.getActiveGame();
+      const game = await db.getActiveGame();
       if (!game) return callback && callback({ success: false, message: 'No active game' });
-      db.updateGameStatus(game.id, 'playing');
-      const image = loadAndBroadcastImage(imageId, 'playing');
+      await db.updateGameStatus(game.id, 'playing');
+      const image = await loadAndBroadcastImage(imageId, 'playing');
       if (!image) return callback && callback({ success: false, message: 'Image not found' });
       callback && callback({ success: true });
     } catch (error) {
@@ -298,7 +298,7 @@ module.exports = (io, socket) => {
   });
 
   // Select image without broadcasting (internal admin selection only)
-  socket.on('admin:select_image', ({ imageId }, callback) => {
+  socket.on('admin:select_image', async ({ imageId }, callback) => {
     if (!requireAdmin('admin:select_image', callback)) return;
     try {
       // Only update internal state, DO NOT broadcast to beamer
@@ -307,7 +307,7 @@ module.exports = (io, socket) => {
       if (!image) return callback && callback({ success: false, message: 'Image not found' });
       
       // Store current selection (for admin UI state only)
-      db.setConfig('currentImageId', imageId);
+      await db.setConfig('currentImageId', imageId);
       
       callback && callback({ success: true });
     } catch (error) {
@@ -317,14 +317,14 @@ module.exports = (io, socket) => {
   });
 
   // Next image during game
-  socket.on('admin:next_image', ({ imageId }, callback) => {
+  socket.on('admin:next_image', async ({ imageId }, callback) => {
     if (!requireAdmin('admin:next_image', callback)) return;
     try {
-      const game = db.getActiveGame();
+      const game = await db.getActiveGame();
       if (!game || game.status !== 'playing') {
         return callback && callback({ success: false, message: 'Game not running' });
       }
-      const image = loadAndBroadcastImage(imageId, 'playing');
+      const image = await loadAndBroadcastImage(imageId, 'playing');
       if (!image) return callback && callback({ success: false, message: 'Image not found' });
       callback && callback({ success: true });
     } catch (error) {
@@ -334,16 +334,16 @@ module.exports = (io, socket) => {
   });
 
   // End game
-  socket.on('admin:end_game', (_data, callback) => {
+  socket.on('admin:end_game', async (_data, callback) => {
     if (!requireAdmin('admin:end_game', callback)) return;
     try {
-      const game = db.getActiveGame();
+      const game = await db.getActiveGame();
       if (!game) return callback && callback({ success: false, message: 'No active game' });
-      db.updateGameStatus(game.id, 'ended');
+      await db.updateGameStatus(game.id, 'ended');
       io.to('players').emit('game:phase_change', { phase: 'ended' });
       io.to('beamer').emit('game:phase_change', { phase: 'ended' });
       // final leaderboard
-      const leaderboard = db.getLeaderboard(game.id, 10);
+      const leaderboard = await db.getLeaderboard(game.id, 10);
       io.emit('game:leaderboard_update', {
         topPlayers: leaderboard.map(p => ({ name: p.name, score: p.score, rank: p.rank })),
         totalPlayers: leaderboard.length
@@ -391,16 +391,16 @@ module.exports = (io, socket) => {
   });
 
   // Admin toggles QR code
-  socket.on('admin:toggle_qr', ({ visible }, callback) => {
+  socket.on('admin:toggle_qr', async ({ visible }, callback) => {
     if (!socket.rooms.has('admin')) {
       if (callback) callback({ success: false, message: 'Nicht authentifiziert' });
       return;
     }
     const qrEnabled = !!visible;
     logger.info('Admin toggled QR', { visible: qrEnabled });
-    db.setConfig('qrEnabled', qrEnabled);
+    await db.setConfig('qrEnabled', qrEnabled);
     const host = socket.handshake.headers.host;
-    const pinObj = db.getPin();
+    const pinObj = await db.getPin();
     const joinUrl = pinObj ? pinObj.joinUrl : `http://${host}/player.html`;
     
     logger.debug('Broadcasting beamer:qr_state to beamer room', { 
@@ -422,14 +422,14 @@ module.exports = (io, socket) => {
   });
 
   // Admin toggles Leaderboard visibility
-  socket.on('admin:toggle_leaderboard', ({ visible }, callback) => {
+  socket.on('admin:toggle_leaderboard', async ({ visible }, callback) => {
     if (!socket.rooms.has('admin')) {
       if (callback) callback({ success: false, message: 'Nicht authentifiziert' });
       return;
     }
     const leaderboardVisible = !!visible;
     logger.info('Admin toggled Leaderboard', { visible: leaderboardVisible });
-    db.setConfig('leaderboardVisible', leaderboardVisible);
+    await db.setConfig('leaderboardVisible', leaderboardVisible);
     
     logger.debug('Broadcasting beamer:leaderboard_visibility to beamer room', { 
       visible: leaderboardVisible 
@@ -448,14 +448,14 @@ module.exports = (io, socket) => {
   });
 
   // Admin generate PIN
-  socket.on('admin:generate_pin', (_data, callback) => {
+  socket.on('admin:generate_pin', async (_data, callback) => {
     if (!requireAdmin('admin:generate_pin', callback)) return;
     try {
       const host = socket.handshake.headers.host;
       const pin = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
-      db.savePin(pin, host);
-      const pinObj = db.getPin();
-      io.to('beamer').emit('beamer:qr_state', { enabled: db.getConfig('qrEnabled') || false, url: pinObj.joinUrl });
+      await db.savePin(pin, host);
+      const pinObj = await db.getPin();
+      io.to('beamer').emit('beamer:qr_state', { enabled: await db.getConfig('qrEnabled') || false, url: pinObj.joinUrl });
       callback({ success: true, data: { pin: pinObj.pin, joinUrl: pinObj.joinUrl } });
     } catch (error) {
       logger.error('Generate PIN failed', { error: error.message });
@@ -464,12 +464,12 @@ module.exports = (io, socket) => {
   });
 
   // Admin reveals image - deckt Bild auf, wertet Antworten, markiert als gespielt
-  socket.on('admin:reveal_image', ({ imageId }, callback) => {
+  socket.on('admin:reveal_image', async ({ imageId }, callback) => {
     if (!requireAdmin('admin:reveal_image', callback)) return;
     logger.game('Image reveal started', { imageId, adminSocketId: socket.id });
     
     try {
-      const game = db.getActiveGame();
+      const game = await db.getActiveGame();
       if (!game) {
         return callback && callback({ success: false, message: 'No active game' });
       }
@@ -500,7 +500,7 @@ module.exports = (io, socket) => {
       const correctAnswer = gameImage?.correct_answer || '';
       
       // 4. HYBRID+ SCORING: Alle eingeloggten Antworten für dieses Bild werten
-      const config = db.getConfig('scoring') || {};
+      const config = await db.getConfig('scoring') || {};
       const revealCount = getRevealCount(db.db, game.id, imageId);
       
       // Hole alle Antworten für dieses Bild (sortiert nach locked_at für Position)
@@ -561,7 +561,7 @@ module.exports = (io, socket) => {
       }
       
       // 5. Leaderboard aktualisieren und broadcasten
-      const leaderboard = db.getLeaderboard(game.id, 10);
+      const leaderboard = await db.getLeaderboard(game.id, 10);
       const totalPlayers = db.db.prepare(
         'SELECT COUNT(*) as count FROM players WHERE game_id = ? AND is_active = 1'
       ).get(game.id);
@@ -643,13 +643,13 @@ module.exports = (io, socket) => {
   });
 
   // Admin requests leaderboard
-  socket.on('admin:get_leaderboard', () => {
+  socket.on('admin:get_leaderboard', async () => {
     if (!socket.rooms.has('admin')) return;
     try {
-      const game = db.getActiveGame();
+      const game = await db.getActiveGame();
       if (!game) return;
       
-      const leaderboard = db.getLeaderboard(game.id, 10);
+      const leaderboard = await db.getLeaderboard(game.id, 10);
       const totalPlayers = db.db.prepare(
         'SELECT COUNT(*) as count FROM players WHERE game_id = ?'
       ).get(game.id);
@@ -679,10 +679,10 @@ module.exports = (io, socket) => {
    * - Clear: scores, answers, image_states, game_images.is_played
    * - Keep: players, game_images, images, config
    */
-  socket.on('admin:reset_game_soft', (data, callback) => {
+  socket.on('admin:reset_game_soft', async (data, callback) => {
     if (!requireAdmin('admin:reset_game_soft', callback)) return;
     try {
-      const game = db.getActiveGame();
+      const game = await db.getActiveGame();
       if (!game) {
         callback && callback({ success: false, message: 'Kein aktives Spiel gefunden' });
         return;
@@ -749,11 +749,11 @@ module.exports = (io, socket) => {
    * - Clear: players, game_images
    * - Optionally: reset start/end images
    */
-  socket.on('admin:reset_complete', (data, callback) => {
+  socket.on('admin:reset_complete', async (data, callback) => {
     if (!requireAdmin('admin:reset_complete', callback)) return;
     try {
       const includeStartEnd = data?.includeStartEnd || false;
-      const game = db.getActiveGame();
+      const game = await db.getActiveGame();
       if (!game) {
         callback && callback({ success: false, message: 'Kein aktives Spiel gefunden' });
         return;
@@ -1026,9 +1026,34 @@ module.exports = (io, socket) => {
    * Server Restart:
    * - Gracefully shutdown and restart the Node.js process
    * - Uses exit code 1 to trigger nodemon restart (with --exitcrash)
+   * - ⚠️ Only available in development (NODE_ENV !== 'production')
    */
   socket.on('admin:restart_server', (data, callback) => {
     if (!requireAdmin('admin:restart_server', callback)) return;
+    
+    // Check if in production mode
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    if (isProduction) {
+      logger.warn('SERVER RESTART rejected: Not available in production', { 
+        requestedBy: socket.id 
+      });
+      return callback && callback({ 
+        success: false, 
+        message: '⚠️ Server-Neustart ist nur in der Entwicklungsumgebung verfügbar.\n\nAuf Produktiv-Systemen (Plesk/Shared Hosting) bitte den Server über das Hosting-Panel neu starten.',
+        devOnly: true
+      });
+    }
+    
+    // Dry run check (for frontend to test availability)
+    if (data?.dryRun) {
+      return callback && callback({ 
+        success: true, 
+        devOnly: false,
+        message: 'Server-Neustart verfügbar' 
+      });
+    }
+    
     try {
       logger.game('SERVER RESTART initiated', {}, 'warn');
       

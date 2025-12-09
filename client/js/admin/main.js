@@ -212,6 +212,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (window.socketAdapter) {
     window.socketAdapter.emit('admin:connect', { token: URL_TOKEN });
   }
+  
+  // Check server environment for production mode
+  setTimeout(() => {
+    checkServerEnvironment();
+  }, 1000);
 });
 
 // ============================================================
@@ -2557,16 +2562,45 @@ async function restartServer() {
   toast('Server wird neugestartet...', 'info');
   
   window.socketAdapter?.emit('admin:restart_server', {}, (response) => {
+    if (response?.devOnly) {
+      // Production mode - restart not available
+      toast(response.message || 'Server-Neustart nur in Entwicklung verfügbar', 'error', 5000);
+      return;
+    }
+    
     // Response may not arrive if server restarts quickly
     if (response?.success) {
       toast('Server-Neustart eingeleitet', 'success');
+      // Wait and reload (server will restart)
+      setTimeout(() => {
+        window.location.reload();
+      }, 3000);
+    } else if (response?.message) {
+      toast(response.message, 'error');
     }
   });
-  
-  // Wait and reload (server will restart)
-  setTimeout(() => {
-    window.location.reload();
-  }, 3000);
+}
+
+// Check server environment on startup and disable restart button if production
+async function checkServerEnvironment() {
+  // Send a test request to check if restart is available
+  window.socketAdapter?.emit('admin:restart_server', { dryRun: true }, (response) => {
+    const btn = document.getElementById('btn-restart-server');
+    const hint = document.getElementById('restart-server-hint');
+    
+    if (response?.devOnly) {
+      // Production mode - disable button
+      if (btn) {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.style.cursor = 'not-allowed';
+        btn.title = 'Nur in Entwicklung verfügbar';
+      }
+      if (hint) {
+        hint.style.display = 'block';
+      }
+    }
+  });
 }
 
 async function factoryReset() {

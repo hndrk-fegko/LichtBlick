@@ -113,10 +113,10 @@ function requireAdminAuth(req, res, next) {
 }
 
 // POST /api/auth/login - Get admin token with PIN
-router.post('/auth/login', (req, res) => {
+router.post('/auth/login', async (req, res) => {
   try {
     const { pin } = req.body;
-    const storedPin = db.getConfig('adminPin') || '1234';
+    const storedPin = await db.getConfig('adminPin') || '1234';
     
     if (pin !== storedPin) {
       logger.warn('🔐 Failed admin login attempt', { ip: req.ip });
@@ -191,9 +191,9 @@ router.use('/images', require('./uploads'));
 router.get('/settings', async (req, res) => {
   try {
     const settings = {
-      darkMode: db.getConfig('darkMode') || false,
-      qrVisible: db.getConfig('qrVisible') || false,
-      scoring: db.getConfig('scoring') || {
+      darkMode: await db.getConfig('darkMode') || false,
+      qrVisible: await db.getConfig('qrVisible') || false,
+      scoring: await db.getConfig('scoring') || {
         basePointsPerCorrect: 100,
         revealPenaltyEnabled: true,
         revealPenaltyPercent: 10,
@@ -202,7 +202,7 @@ router.get('/settings', async (req, res) => {
         firstAnswerBonusPoints: 50,
         speedBonusEnabled: false
       },
-      spotlight: db.getConfig('spotlight') || {
+      spotlight: await db.getConfig('spotlight') || {
         radius: 80,
         strength: 0.5,
         increaseAfterSeconds: 30,
@@ -223,19 +223,19 @@ router.put('/settings', requireAdminAuth, async (req, res) => {
     const { darkMode, qrVisible, scoring, spotlight } = req.body;
     
     if (darkMode !== undefined) {
-      db.setConfig('darkMode', darkMode);
+      await db.setConfig('darkMode', darkMode);
     }
     
     if (qrVisible !== undefined) {
-      db.setConfig('qrVisible', qrVisible);
+      await db.setConfig('qrVisible', qrVisible);
     }
     
     if (scoring) {
-      db.setConfig('scoring', scoring);
+      await db.setConfig('scoring', scoring);
     }
     
     if (spotlight) {
-      db.setConfig('spotlight', spotlight);
+      await db.setConfig('spotlight', spotlight);
     }
     
     logger.info('Settings updated', { darkMode, qrVisible, scoring, spotlight });
@@ -251,9 +251,9 @@ router.patch('/settings', requireAdminAuth, async (req, res) => {
   try {
     const updates = req.body;
     
-    Object.keys(updates).forEach(key => {
-      db.setConfig(key, updates[key]);
-    });
+    for (const key of Object.keys(updates)) {
+      await db.setConfig(key, updates[key]);
+    }
     
     logger.info('Settings partially updated', updates);
     res.json({ success: true, message: 'Settings updated' });
@@ -278,7 +278,7 @@ router.post('/pin', requireAdminAuth, async (req, res) => {
       });
     }
     
-    db.setConfig('adminPin', pin);
+    await db.setConfig('adminPin', pin);
     logger.info('Admin PIN set');
     
     res.json({ success: true, message: 'PIN set successfully' });
@@ -291,7 +291,7 @@ router.post('/pin', requireAdminAuth, async (req, res) => {
 // DELETE /api/pin (🔒 protected)
 router.delete('/pin', requireAdminAuth, async (req, res) => {
   try {
-    db.setConfig('adminPin', null);
+    await db.setConfig('adminPin', null);
     logger.info('Admin PIN removed');
     
     res.json({ success: true, message: 'PIN removed' });
@@ -304,7 +304,7 @@ router.delete('/pin', requireAdminAuth, async (req, res) => {
 // GET /api/check-pin
 router.get('/check-pin', async (req, res) => {
   try {
-    const pin = db.getConfig('adminPin');
+    const pin = await db.getConfig('adminPin');
     
     res.json({ 
       success: true, 
@@ -323,7 +323,7 @@ router.get('/check-pin', async (req, res) => {
 router.post('/verify-pin', async (req, res) => {
   try {
     const { pin } = req.body;
-    const storedPin = db.getConfig('adminPin');
+    const storedPin = await db.getConfig('adminPin');
     
     if (!storedPin) {
       return res.json({ success: true, message: 'No PIN required' });
@@ -350,7 +350,7 @@ router.post('/verify-pin', async (req, res) => {
 router.get('/game-images', async (req, res) => {
   try {
     // Try active game first, fallback to latest game (for ended state)
-    const game = db.getActiveGame() || db.getLatestGame();
+    const game = await db.getActiveGame() || await db.getLatestGame();
     if (!game) {
       return res.json({ success: true, data: [] });
     }
@@ -386,7 +386,7 @@ router.post('/game-images', requireAdminAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'imageId required' });
     }
     
-    const game = db.getActiveGame();
+    const game = await db.getActiveGame();
     if (!game) {
       return res.status(400).json({ success: false, message: 'No active game' });
     }
@@ -517,7 +517,7 @@ router.patch('/game-images/reorder', requireAdminAuth, async (req, res) => {
 // POST /api/game-images/reset-played - Reset all is_played flags (🔒 protected)
 router.post('/game-images/reset-played', requireAdminAuth, async (req, res) => {
   try {
-    const game = db.getActiveGame();
+    const game = await db.getActiveGame();
     if (!game) {
       return res.status(400).json({ success: false, message: 'No active game' });
     }
@@ -540,7 +540,7 @@ router.post('/game-images/reset-played', requireAdminAuth, async (req, res) => {
 // GET /api/words - Get base word list (without deduplication)
 router.get('/words', async (req, res) => {
   try {
-    const wordList = db.getConfig('wordList') || [];
+    const wordList = await db.getConfig('wordList') || [];
     res.json({ success: true, data: wordList });
   } catch (error) {
     logger.error('Failed to get word list', { error: error.message });
@@ -555,10 +555,10 @@ router.get('/words/:imageId', async (req, res) => {
     const imageId = parseInt(req.params.imageId);
     
     // 1. Get base word list (decoys/Täuschwörter)
-    const wordList = db.getConfig('wordList') || [];
+    const wordList = await db.getConfig('wordList') || [];
     
     // 2. Get ALL correct answers from ALL images in the current game
-    const game = db.getActiveGame();
+    const game = await db.getActiveGame();
     let correctAnswers = [];
     
     if (game) {
@@ -615,7 +615,7 @@ router.put('/words', requireAdminAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'words must be an array' });
     }
     
-    db.setConfig('wordList', words);
+    await db.setConfig('wordList', words);
     logger.info('Word list updated', { count: words.length });
     res.json({ success: true, message: 'Words saved' });
   } catch (error) {
