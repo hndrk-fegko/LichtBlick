@@ -119,7 +119,7 @@ module.exports = (io, socket) => {
       const lockTimestamp = lockedAt || Date.now();
       
       // Check if player already has a locked answer for this image
-      const existingStmt = db.db.prepare(`
+      const existingStmt = db.prepare(`
         SELECT id FROM answers 
         WHERE player_id = ? AND image_id = ?
       `);
@@ -127,7 +127,7 @@ module.exports = (io, socket) => {
       
       if (existing) {
         // Update existing answer (player changed their mind)
-        const updateStmt = db.db.prepare(`
+        const updateStmt = db.prepare(`
           UPDATE answers 
           SET answer = ?, locked_at = ?, is_correct = NULL, points_earned = 0
           WHERE player_id = ? AND image_id = ?
@@ -143,7 +143,7 @@ module.exports = (io, socket) => {
         });
       } else {
         // Insert new locked answer (not scored yet - is_correct = NULL)
-        const insertStmt = db.db.prepare(`
+        const insertStmt = db.prepare(`
           INSERT INTO answers (player_id, image_id, answer, is_correct, points_earned, locked_at)
           VALUES (?, ?, ?, NULL, 0, ?)
         `);
@@ -182,7 +182,7 @@ module.exports = (io, socket) => {
   socket.on('player:reconnect', async ({ playerId }, callback) => {
     try {
       // Get player from database
-      const stmt = db.db.prepare('SELECT * FROM players WHERE id = ?');
+      const stmt = db.prepare('SELECT * FROM players WHERE id = ?');
       const player = stmt.get(playerId);
       
       if (!player) {
@@ -193,7 +193,7 @@ module.exports = (io, socket) => {
       }
       
       // Update socket_id and mark as active
-      const updateStmt = db.db.prepare(
+      const updateStmt = db.prepare(
         "UPDATE players SET socket_id = ?, is_active = 1, last_seen = strftime('%s','now') WHERE id = ?"
       );
       updateStmt.run(socket.id, playerId);
@@ -248,7 +248,7 @@ module.exports = (io, socket) => {
       }
       
       // Soft-delete player
-      const stmt = db.db.prepare(
+      const stmt = db.prepare(
         'UPDATE players SET is_active = 0 WHERE id = ?'
       );
       stmt.run(playerId);
@@ -280,7 +280,7 @@ module.exports = (io, socket) => {
       
       // Update last_seen but keep is_active=1 for 60 seconds grace period
       try {
-        const stmt = db.db.prepare(
+        const stmt = db.prepare(
           "UPDATE players SET last_seen = strftime('%s','now') WHERE id = ?"
         );
         stmt.run(socket.playerId);

@@ -188,6 +188,43 @@ class DatabaseManager {
     return rows;
   }
 
+  /**
+   * Prepare statement (wrapper for compatibility with better-sqlite3)
+   * Returns an object with run(), get(), and all() methods
+   * @param {string} sql - SQL statement
+   * @returns {Object} - Statement-like object
+   */
+  prepare(sql) {
+    if (!this.db) throw new Error('Database not initialized');
+    
+    return {
+      run: (...params) => this.run(sql, params),
+      get: (...params) => this.get(sql, params),
+      all: (...params) => this.all(sql, params)
+    };
+  }
+
+  /**
+   * Transaction wrapper (wrapper for compatibility with better-sqlite3)
+   * sql.js doesn't have native transactions, so we simulate with BEGIN/COMMIT
+   * @param {Function} fn - Function to execute in transaction
+   * @returns {Function} - Wrapped function
+   */
+  transaction(fn) {
+    return (...args) => {
+      try {
+        this.db.run('BEGIN TRANSACTION');
+        const result = fn(...args);
+        this.db.run('COMMIT');
+        this.save();
+        return result;
+      } catch (error) {
+        this.db.run('ROLLBACK');
+        throw error;
+      }
+    };
+  }
+
   applyMigrations() {
     try {
       // 1. Ensure players.is_active column exists

@@ -355,7 +355,7 @@ router.get('/game-images', async (req, res) => {
       return res.json({ success: true, data: [] });
     }
     
-    const stmt = db.db.prepare(`
+    const stmt = db.prepare(`
       SELECT gi.*, i.filename, i.url 
       FROM game_images gi
       JOIN images i ON gi.image_id = i.id
@@ -392,13 +392,13 @@ router.post('/game-images', requireAdminAuth, async (req, res) => {
     }
     
     // Get next display_order
-    const maxOrderStmt = db.db.prepare(
+    const maxOrderStmt = db.prepare(
       'SELECT COALESCE(MAX(display_order), -1) + 1 as next_order FROM game_images WHERE game_id = ?'
     );
     const { next_order } = maxOrderStmt.get(game.id);
     
     // Insert game_image
-    const stmt = db.db.prepare(`
+    const stmt = db.prepare(`
       INSERT INTO game_images (game_id, image_id, correct_answer, display_order)
       VALUES (?, ?, ?, ?)
     `);
@@ -433,7 +433,7 @@ router.delete('/game-images/:id', requireAdminAuth, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     
-    const stmt = db.db.prepare('DELETE FROM game_images WHERE id = ?');
+    const stmt = db.prepare('DELETE FROM game_images WHERE id = ?');
     const result = stmt.run(id);
     
     if (result.changes === 0) {
@@ -472,7 +472,7 @@ router.patch('/game-images/:id', requireAdminAuth, async (req, res) => {
     }
     
     params.push(id);
-    const stmt = db.db.prepare(`UPDATE game_images SET ${updates.join(', ')} WHERE id = ?`);
+    const stmt = db.prepare(`UPDATE game_images SET ${updates.join(', ')} WHERE id = ?`);
     const result = stmt.run(...params);
     
     if (result.changes === 0) {
@@ -496,9 +496,9 @@ router.patch('/game-images/reorder', requireAdminAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'order must be an array' });
     }
     
-    const updateStmt = db.db.prepare('UPDATE game_images SET display_order = ? WHERE id = ?');
+    const updateStmt = db.prepare('UPDATE game_images SET display_order = ? WHERE id = ?');
     
-    const transaction = db.db.transaction((ids) => {
+    const transaction = db.transaction((ids) => {
       ids.forEach((id, index) => {
         updateStmt.run(index, id);
       });
@@ -522,7 +522,7 @@ router.post('/game-images/reset-played', requireAdminAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'No active game' });
     }
     
-    const stmt = db.db.prepare('UPDATE game_images SET is_played = 0 WHERE game_id = ?');
+    const stmt = db.prepare('UPDATE game_images SET is_played = 0 WHERE game_id = ?');
     stmt.run(game.id);
     
     logger.info('Game images reset', { gameId: game.id });
@@ -562,7 +562,7 @@ router.get('/words/:imageId', async (req, res) => {
     let correctAnswer = null;
     
     if (game) {
-      const stmt = db.db.prepare(`
+      const stmt = db.prepare(`
         SELECT correct_answer FROM game_images 
         WHERE game_id = ? AND image_id = ?
       `);

@@ -31,7 +31,7 @@ function syncImagesWithFilesystem(db) {
     .filter(f => /\.(jpg|jpeg|png|gif|webp)$/i.test(f));
   
   // Get all images from database
-  const imagesInDb = db.db.prepare('SELECT id, url, filename FROM images').all();
+  const imagesInDb = db.all('SELECT id, url, filename FROM images');
   
   let cleaned = 0;
   let imported = 0;
@@ -50,8 +50,8 @@ function syncImagesWithFilesystem(db) {
       });
       
       // Also remove from game_images
-      db.db.prepare('DELETE FROM game_images WHERE image_id = ?').run(img.id);
-      db.db.prepare('DELETE FROM images WHERE id = ?').run(img.id);
+      db.run('DELETE FROM game_images WHERE image_id = ?', [img.id]);
+      db.run('DELETE FROM images WHERE id = ?', [img.id]);
       cleaned++;
     }
   }
@@ -65,11 +65,10 @@ function syncImagesWithFilesystem(db) {
       const url = `/uploads/${file}`;
       
       try {
-        const stmt = db.db.prepare(`
-          INSERT INTO images (filename, url)
-          VALUES (?, ?)
-        `);
-        stmt.run(file, url);
+        db.run(
+          `INSERT INTO images (filename, url) VALUES (?, ?)`,
+          [file, url]
+        );
         
         logger.info('Image sync: Auto-imported file', { filename: file });
         imported++;

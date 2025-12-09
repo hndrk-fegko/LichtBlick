@@ -66,8 +66,8 @@ function emitImageRoleChange(req) {
   if (!io) return;
   
   // Get current start and end images
-  const startImage = db.db.prepare('SELECT * FROM images WHERE is_start_image = 1').get();
-  const endImage = db.db.prepare('SELECT * FROM images WHERE is_end_image = 1').get();
+  const startImage = db.prepare('SELECT * FROM images WHERE is_start_image = 1').get();
+  const endImage = db.prepare('SELECT * FROM images WHERE is_end_image = 1').get();
   
   io.emit('beamer:image_roles_changed', {
     startImage: startImage ? { id: startImage.id, url: startImage.url } : null,
@@ -128,7 +128,7 @@ router.post('/upload', checkAdminAuth, upload.single('image'), async (req, res) 
     }
     
     // Insert into database (no type, no game_id)
-    const stmt = db.db.prepare(`
+    const stmt = db.prepare(`
       INSERT INTO images (filename, url)
       VALUES (?, ?)
     `);
@@ -172,7 +172,7 @@ router.post('/upload', checkAdminAuth, upload.single('image'), async (req, res) 
 // GET /api/images - Get all images from pool
 router.get('/', async (req, res) => {
   try {
-    const stmt = db.db.prepare('SELECT * FROM images ORDER BY uploaded_at DESC');
+    const stmt = db.prepare('SELECT * FROM images ORDER BY uploaded_at DESC');
     const images = stmt.all();
     
     res.json({
@@ -195,10 +195,10 @@ router.patch('/:id/set-start', checkAdminAuth, async (req, res) => {
     const imageId = parseInt(req.params.id);
     
     // Clear previous start image (but not on this image if it's also end)
-    db.db.prepare('UPDATE images SET is_start_image = 0 WHERE is_start_image = 1 AND id != ?').run(imageId);
+    db.prepare('UPDATE images SET is_start_image = 0 WHERE is_start_image = 1 AND id != ?').run(imageId);
     
     // Set new start image (keep is_end_image unchanged)
-    const stmt = db.db.prepare('UPDATE images SET is_start_image = 1 WHERE id = ?');
+    const stmt = db.prepare('UPDATE images SET is_start_image = 1 WHERE id = ?');
     const result = stmt.run(imageId);
     
     if (result.changes === 0) {
@@ -221,10 +221,10 @@ router.patch('/:id/set-end', checkAdminAuth, async (req, res) => {
     const imageId = parseInt(req.params.id);
     
     // Clear previous end image (but not on this image if it's also start)
-    db.db.prepare('UPDATE images SET is_end_image = 0 WHERE is_end_image = 1 AND id != ?').run(imageId);
+    db.prepare('UPDATE images SET is_end_image = 0 WHERE is_end_image = 1 AND id != ?').run(imageId);
     
     // Set new end image (keep is_start_image unchanged)
-    const stmt = db.db.prepare('UPDATE images SET is_end_image = 1 WHERE id = ?');
+    const stmt = db.prepare('UPDATE images SET is_end_image = 1 WHERE id = ?');
     const result = stmt.run(imageId);
     
     if (result.changes === 0) {
@@ -246,7 +246,7 @@ router.patch('/:id/clear-start', checkAdminAuth, async (req, res) => {
   try {
     const imageId = parseInt(req.params.id);
     
-    const stmt = db.db.prepare('UPDATE images SET is_start_image = 0 WHERE id = ?');
+    const stmt = db.prepare('UPDATE images SET is_start_image = 0 WHERE id = ?');
     const result = stmt.run(imageId);
     
     if (result.changes === 0) {
@@ -268,7 +268,7 @@ router.patch('/:id/clear-end', checkAdminAuth, async (req, res) => {
   try {
     const imageId = parseInt(req.params.id);
     
-    const stmt = db.db.prepare('UPDATE images SET is_end_image = 0 WHERE id = ?');
+    const stmt = db.prepare('UPDATE images SET is_end_image = 0 WHERE id = ?');
     const result = stmt.run(imageId);
     
     if (result.changes === 0) {
@@ -290,7 +290,7 @@ router.patch('/:id/clear-role', checkAdminAuth, async (req, res) => {
   try {
     const imageId = parseInt(req.params.id);
     
-    const stmt = db.db.prepare('UPDATE images SET is_start_image = 0, is_end_image = 0 WHERE id = ?');
+    const stmt = db.prepare('UPDATE images SET is_start_image = 0, is_end_image = 0 WHERE id = ?');
     const result = stmt.run(imageId);
     
     if (result.changes === 0) {
@@ -313,7 +313,7 @@ router.delete('/:id', checkAdminAuth, async (req, res) => {
     const imageId = parseInt(req.params.id);
     
     // Get image from database
-    const stmt = db.db.prepare('SELECT * FROM images WHERE id = ?');
+    const stmt = db.prepare('SELECT * FROM images WHERE id = ?');
     const image = stmt.get(imageId);
     
     if (!image) {
@@ -327,10 +327,10 @@ router.delete('/:id', checkAdminAuth, async (req, res) => {
     }
     
     // Delete from game_images first (referential integrity)
-    db.db.prepare('DELETE FROM game_images WHERE image_id = ?').run(imageId);
+    db.prepare('DELETE FROM game_images WHERE image_id = ?').run(imageId);
     
     // Delete from database
-    const deleteStmt = db.db.prepare('DELETE FROM images WHERE id = ?');
+    const deleteStmt = db.prepare('DELETE FROM images WHERE id = ?');
     deleteStmt.run(imageId);
     
     logger.info('Image deleted', { imageId, filename: image.filename });

@@ -20,7 +20,7 @@ module.exports = (io, socket) => {
     try {
       // Get current game state
       const game = db.getActiveGame() || { id: 1, status: 'lobby' };
-      const playerCount = db.db.prepare(
+      const playerCount = db.prepare(
         'SELECT COUNT(*) as count FROM players WHERE game_id = ?'
       ).get(game.id);
       
@@ -50,7 +50,7 @@ module.exports = (io, socket) => {
       
       // Send current image if any
       if (currentImageId) {
-        const stmt = db.db.prepare('SELECT * FROM images WHERE id = ?');
+        const stmt = db.prepare('SELECT * FROM images WHERE id = ?');
         const image = stmt.get(currentImageId);
         
         if (image) {
