@@ -4,6 +4,8 @@
   "description": "LichtBlick - Multiplayer Game with Playwright E2E Tests",
   "scripts": {
     "setup": "node scripts/setup-plesk.js",
+    "mysql:test1": "node scripts/diagnose-mysql.js",
+    "mysql:test2": "node scripts/test-mysql-connection.js",
     "get-token": "node scripts/get-admin-token.js",
     "test:e2e": "playwright test --config=tests/playwright.config.js",
     "test:e2e:headed": "playwright test --config=tests/playwright.config.js --headed",

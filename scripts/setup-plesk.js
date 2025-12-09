@@ -82,6 +82,15 @@ function prompt(question) {
 async function checkEnvironment() {
   log('\n📋 1. Umgebungs-Variablen prüfen...', 'bright');
   
+  // Check command line arguments first
+  const args = process.argv.slice(2);
+  for (const arg of args) {
+    const [key, value] = arg.split('=');
+    if (key && value) {
+      process.env[key] = value;
+    }
+  }
+  
   // Check if variables are set
   let DB_HOST = process.env.DB_HOST;
   let DB_NAME = process.env.DB_NAME;
@@ -103,31 +112,14 @@ async function checkEnvironment() {
     log(`  ${status} ${key}: ${value}`, value !== 'nicht gesetzt' ? 'green' : 'red');
   }
   
-  // Prompt for missing values
+  // Exit if missing (non-interactive environment)
   if (!DB_HOST || !DB_NAME || !DB_USER || !DB_PASSWORD) {
-    log('\n⚠️  Einige Variablen fehlen. Bitte eingeben:', 'yellow');
-    
-    if (!DB_HOST) {
-      DB_HOST = await prompt('  DB_HOST (z.B. localhost): ');
-      process.env.DB_HOST = DB_HOST;
-    }
-    
-    if (!DB_NAME) {
-      DB_NAME = await prompt('  DB_NAME (z.B. lichtblick): ');
-      process.env.DB_NAME = DB_NAME;
-    }
-    
-    if (!DB_USER) {
-      DB_USER = await prompt('  DB_USER (z.B. lichtblick): ');
-      process.env.DB_USER = DB_USER;
-    }
-    
-    if (!DB_PASSWORD) {
-      DB_PASSWORD = await prompt('  DB_PASSWORD: ');
-      process.env.DB_PASSWORD = DB_PASSWORD;
-    }
-    
-    log('\n✅ Alle Variablen erfasst!', 'green');
+    log('\n❌ FEHLER: MySQL-Konfiguration fehlt!', 'red');
+    log('\n💡 Bitte als Parameter übergeben:', 'yellow');
+    log('  node scripts/setup-plesk.js DB_HOST=localhost DB_NAME=lichtblick DB_USER=lichtblick DB_PASSWORD=xxx', 'cyan');
+    log('\nODER .env Datei korrekt befüllen:', 'yellow');
+    log(`  Aktuelle .env: ${envPath}`, 'cyan');
+    process.exit(1);
   }
 }
 
