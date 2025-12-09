@@ -47,9 +47,11 @@ npm start
 
 **Phase 1.2 ✅ COMPLETE** - Database Setup
 - ✅ SQLite schema created (schema.sql)
-- ✅ Database manager (database.js) implemented
-- ✅ WAL mode enabled
+- ✅ Database manager (database.js) implemented with **sql.js** (no native compilation)
+- ✅ Auto-save after write operations
 - ✅ Default config inserted
+
+> **Note:** LichtBlick uses **sql.js** instead of better-sqlite3 to enable deployment on Plesk Shared Hosting without native compilation (no node-gyp, C++, Python needed). See [PLESK_DEPLOYMENT.md](../docs/PLESK_DEPLOYMENT.md) for details.
 
 **Phase 1.3 ✅ COMPLETE** - REST API
 - ✅ Settings endpoints (GET/PUT/PATCH)
@@ -156,6 +158,8 @@ See `/docs` folder for complete documentation:
 - [API_CONTRACT.md](../docs/API_CONTRACT.md) - API specification
 - [DATABASE_SCHEMA.md](../docs/DATABASE_SCHEMA.md) - Database structure
 - [IMPLEMENTATION_ROADMAP.md](../docs/IMPLEMENTATION_ROADMAP.md) - Implementation plan
+- [PLESK_DEPLOYMENT.md](../docs/PLESK_DEPLOYMENT.md) - Plesk Shared Hosting deployment guide
+- [MIGRATION_SUMMARY.md](../docs/MIGRATION_SUMMARY.md) - sql.js migration technical overview
 
 ## ⚠️ Known Limitations (MVP)
 

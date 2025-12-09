@@ -229,6 +229,34 @@ MAX_FILES=50
 
 ---
 
+## 🌐 Deployment
+
+### Lokales Netzwerk
+
+Standard-Setup für lokale Veranstaltungen:
+
+```bash
+cd server
+npm start
+```
+
+Server ist dann im lokalen WLAN unter `http://[SERVER-IP]:3000` erreichbar.
+
+### Plesk Shared Hosting
+
+LichtBlick kann auf Plesk Shared Hosting deployt werden **ohne native Kompilierung**!
+
+**Warum es funktioniert:**
+- LichtBlick nutzt **sql.js** (pure JavaScript/WebAssembly)
+- Keine Build-Tools (node-gyp, C++, Python) erforderlich
+- `npm install` läuft fehlerfrei auf Shared Hosting
+
+**Deployment-Anleitung:** Siehe [`docs/PLESK_DEPLOYMENT.md`](docs/PLESK_DEPLOYMENT.md)
+
+**Migration:** Siehe [`docs/MIGRATION_SUMMARY.md`](docs/MIGRATION_SUMMARY.md) für technische Details der sql.js-Migration
+
+---
+
 ## 📚 Dokumentation
 
 Ausführliche Dokumentation in [`docs/`](docs/):
@@ -240,6 +268,8 @@ Ausführliche Dokumentation in [`docs/`](docs/):
 | [API_CONTRACT.md](docs/API_CONTRACT.md) | REST + WebSocket API Spezifikation |
 | [GAME_MECHANICS.md](docs/GAME_MECHANICS.md) | Spiellogik & Punktesystem |
 | [DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) | SQLite Datenbankstruktur |
+| [PLESK_DEPLOYMENT.md](docs/PLESK_DEPLOYMENT.md) | Plesk Shared Hosting Deployment |
+| [MIGRATION_SUMMARY.md](docs/MIGRATION_SUMMARY.md) | sql.js Migration Übersicht |
 | [DEPLOYMENT_CHECKLIST.md](docs/DEPLOYMENT_CHECKLIST.md) | Deployment & Markenname-Ersetzung |
 | [ANDOCK_PLAN.md](docs/ANDOCK_PLAN.md) | Aktueller Implementierungsplan & Bug-Tracking |
 | [RESET_MANAGEMENT.md](docs/RESET_MANAGEMENT.md) | Reset- und Neustart-Funktionalität |
