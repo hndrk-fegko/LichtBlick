@@ -1,8 +1,19 @@
-# LichtBlick v3.0 - Clean Slate Rewrite Documentation
+# LichtBlick v3.0 - Documentation
 
-**Status:** 🚀 **PRODUCTION READY SPECIFICATION**  
-**Datum:** 27. November 2025  
-**Zweck:** Komplette Neuentwicklung mit Node.js + WebSockets + SQLite
+**Status:** 🚀 **PRODUCTION READY SPECIFICATION** (MySQL Migration in Progress)  
+**Datum:** 27. November 2025 (Updated: December 2025)  
+**Zweck:** Komplette Neuentwicklung mit Node.js + WebSockets + MySQL/MariaDB
+
+---
+
+## ⚠️ MySQL Migration (December 2025)
+
+Das Projekt wird aktuell von SQLite auf MySQL/MariaDB umgestellt für bessere Kompatibilität mit Plesk Shared Hosting.
+
+**Migrationsstand:**
+- ✅ Datenbank-Infrastruktur: ABGESCHLOSSEN
+- ⏳ Anwendungs-Code: IN ARBEIT
+- 📖 Siehe: [../MYSQL_IMPLEMENTATION_SUMMARY.md](../MYSQL_IMPLEMENTATION_SUMMARY.md)
 
 ---
 
