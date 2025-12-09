@@ -488,7 +488,7 @@ module.exports = (io, socket) => {
       
       // 4. HYBRID+ SCORING: Alle eingeloggten Antworten für dieses Bild werten
       const config = db.getConfig('scoring') || {};
-      const revealCount = getRevealCount(db.db, game.id, imageId);
+      const revealCount = getRevealCount(db, game.id, imageId);
       
       // Hole alle Antworten für dieses Bild (sortiert nach locked_at für Position)
       const answersStmt = db.prepare(`
