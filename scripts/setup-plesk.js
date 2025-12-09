@@ -175,22 +175,15 @@ async function createDatabaseSchema() {
       multipleStatements: true
     });
     
-    // SQL-Statements einzeln ausführen (sicherer als multipleStatements)
-    const statements = schemaSql
-      .split(';')
-      .map(s => s.trim())
-      .filter(s => s.length > 0 && !s.startsWith('--'));
+    // Entferne Kommentare und führe SQL aus
+    const cleanSql = schemaSql
+      .split('\n')
+      .filter(line => !line.trim().startsWith('--'))
+      .join('\n')
+      .trim();
     
-    for (const statement of statements) {
-      try {
-        await connection.query(statement);
-      } catch (err) {
-        if (!err.message.includes('already exists')) {
-          throw err;
-        }
-        // Tabelle existiert bereits - OK
-      }
-    }
+    // Führe gesamtes SQL aus (multipleStatements: true)
+    await connection.query(cleanSql);
     
     log('  ✅ Schema erfolgreich erstellt!', 'green');
     
@@ -229,7 +222,7 @@ async function generateAdminToken() {
     
     // Prüfe ob Token bereits existiert
     const [existing] = await connection.query(
-      'SELECT value FROM config WHERE key = ?',
+      'SELECT value FROM config WHERE `key` = ?',
       ['adminToken']
     );
     
@@ -241,7 +234,7 @@ async function generateAdminToken() {
       // Neuen Token generieren
       token = crypto.randomBytes(24).toString('base64url');
       await connection.query(
-        'INSERT INTO config (key, value) VALUES (?, ?)',
+        'INSERT INTO config (`key`, value) VALUES (?, ?)',
         ['adminToken', token]
       );
       log('  ✅ Neuer Admin-Token generiert!', 'green');
