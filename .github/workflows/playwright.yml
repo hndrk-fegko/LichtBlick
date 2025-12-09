@@ -27,9 +27,27 @@ jobs:
       
     - name: Install server dependencies
       run: cd server && npm ci
-      
+
+    # ✅ NEU: Playwright Browser Cache
+    - name: Get Playwright version
+      id: playwright-version
+      run: echo "version=$(npx playwright --version | cut -d' ' -f2)" >> $GITHUB_OUTPUT
+
+    - name: Cache Playwright Browsers
+      uses: actions/cache@v4
+      id: playwright-cache
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
     - name: Install Playwright Browsers
+      if: steps.playwright-cache.outputs.cache-hit != 'true'
       run: npx playwright install --with-deps
+
+    # Falls aus Cache geladen, nur System-Dependencies installieren
+    - name: Install Playwright System Dependencies
+      if: steps.playwright-cache.outputs.cache-hit == 'true'
+      run: npx playwright install-deps
       
     - name: Create data directory
       run: mkdir -p data/uploads && touch data/uploads/.gitkeep
@@ -51,7 +69,7 @@ jobs:
       with:
         name: test-results
         path: test-results/
-        retention-days: 30
+        retention-days: 7
         
     - name: Upload Screenshots
       uses: actions/upload-artifact@v4

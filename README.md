@@ -221,15 +221,17 @@ DB_TYPE=none
 
 ⚠️ **Achtung:** In diesem Modus wird **keine Datenbank** geladen. Die Anwendung ist **nicht funktionsfähig**!
 
-**Verwendungszweck:** Auf Shared-Hosting-Umgebungen kann `better-sqlite3` nicht kompiliert werden. Setze `DB_TYPE=none` **nur** für `npm install`, und wechsle danach zu `DB_TYPE=mysql`:
+**Verwendungszweck:** Auf Shared-Hosting-Umgebungen (z.B. Plesk, cPanel) kann `better-sqlite3` nicht kompiliert werden, da `node-gyp` fehlt. Setze `DB_TYPE=none` **nur** für `npm install`, und wechsle danach zu `DB_TYPE=mysql`:
 
 ```bash
-# Auf Shared Hosting:
+# Auf Shared Hosting (Plesk/cPanel):
 export DB_TYPE=none
-npm install
-export DB_TYPE=mysql
-npm start
+npm install                # Installiert Dependencies OHNE better-sqlite3
+export DB_TYPE=mysql       # Oder setze in .env Datei
+npm start                  # Startet mit MySQL
 ```
+
+**📋 Vollständige Plesk-Installation:** Siehe [Deployment auf Plesk](#-deployment-auf-plesk-shared-hosting)
 
 #### Automatische Backend-Auswahl
 
@@ -327,6 +329,117 @@ Ausführliche Dokumentation in [`docs/`](docs/):
 | [ANDOCK_PLAN.md](docs/ANDOCK_PLAN.md) | Aktueller Implementierungsplan & Bug-Tracking |
 | [RESET_MANAGEMENT.md](docs/RESET_MANAGEMENT.md) | Reset- und Neustart-Funktionalität |
 | [BEAMER_ANALYSIS.md](docs/BEAMER_ANALYSIS.md) | Beamer-Display Analyse und Optimierungen |
+
+---
+
+## 🚀 Deployment auf Plesk Shared Hosting
+
+### Voraussetzungen
+
+- Plesk-Zugang mit SSH (oder Terminal in Plesk)
+- MySQL-Datenbank verfügbar
+- Node.js 20+ installiert (via Node.js Extension in Plesk)
+
+### Schritt-für-Schritt Installation
+
+#### 1. MySQL-Datenbank erstellen
+
+In Plesk unter **Datenbanken**:
+- Neue Datenbank erstellen (z.B. `lichtblick`)
+- Benutzer mit Passwort erstellen
+- Notiere: Host, Port (meist 3306), User, Passwort, DB-Name
+
+#### 2. Repository hochladen
+
+```bash
+# Via SSH oder Plesk File Manager
+cd /var/www/vhosts/deine-domain.de/httpdocs
+git clone https://github.com/hndrk-fegko/LichtBlick.git lichtblick
+cd lichtblick
+```
+
+#### 3. Dependencies installieren (MIT DB_TYPE=none!)
+
+⚠️ **Wichtig:** `better-sqlite3` kann auf Shared Hosting nicht kompiliert werden!
+
+```bash
+cd server
+
+# WICHTIG: DB_TYPE=none setzen für npm install
+export DB_TYPE=none
+npm install
+
+# Sollte ohne Fehler durchlaufen
+```
+
+#### 4. .env Datei erstellen
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+**Inhalt anpassen:**
+```env
+PORT=3000
+NODE_ENV=production
+
+# MySQL-Datenbank verwenden!
+DB_TYPE=mysql
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=dein_mysql_user
+DB_PASSWORD=dein_mysql_passwort
+DB_NAME=lichtblick
+
+LOG_LEVEL=info
+LOG_FILE_PATH=../logs
+
+ADMIN_PIN=1234
+
+UPLOAD_DIR=../data/uploads
+MAX_FILE_SIZE=10485760
+
+CORS_ORIGIN=*
+```
+
+#### 5. Verzeichnisse erstellen
+
+```bash
+cd ..  # Zurück ins Hauptverzeichnis
+mkdir -p data/uploads logs
+chmod 755 data/uploads logs
+```
+
+#### 6. Server starten
+
+```bash
+cd server
+npm start
+```
+
+#### 7. Node.js App in Plesk konfigurieren
+
+In Plesk unter **Node.js**:
+- **Application Mode:** Production
+- **Application Root:** `/var/www/vhosts/deine-domain.de/httpdocs/lichtblick`
+- **Application Startup File:** `server/index.js`
+- **Environment Variables:** Aus `.env` übernehmen
+- **NPM install:** NICHT ausführen (bereits mit DB_TYPE=none installiert)
+
+### Troubleshooting
+
+**Problem:** `npm install` schlägt fehl mit `error code 127` (better-sqlite3)
+- **Lösung:** `export DB_TYPE=none` VOR `npm install` setzen
+
+**Problem:** Server startet nicht (DB-Fehler)
+- **Lösung:** In `.env` prüfen: `DB_TYPE=mysql` und korrekte MySQL-Credentials
+
+**Problem:** "nodenv: node: command not found"
+- **Lösung:** Node.js Extension in Plesk aktivieren, Version 20+ wählen
+
+**Problem:** Bilder können nicht hochgeladen werden
+- **Lösung:** `chmod 755 data/uploads` und Besitzer auf Plesk-User setzen
 
 ---
 
