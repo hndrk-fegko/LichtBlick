@@ -16,7 +16,7 @@ const UPLOADS_DIR = path.join(__dirname, '../../data/uploads');
  * Sync database with filesystem
  * @param {Object} db - Database manager instance
  */
-function syncImagesWithFilesystem(db) {
+async function syncImagesWithFilesystem(db) {
   logger.info('Image sync: Starting validation...');
   
   // Ensure uploads directory exists
@@ -30,8 +30,8 @@ function syncImagesWithFilesystem(db) {
   const filesOnDisk = fs.readdirSync(UPLOADS_DIR)
     .filter(f => /\.(jpg|jpeg|png|gif|webp)$/i.test(f));
   
-  // Get all images from database
-  const imagesInDb = db.db.prepare('SELECT id, url, filename FROM images').all();
+  // Get all images from database using abstraction layer
+  const imagesInDb = await db.getAllImages();
   
   let cleaned = 0;
   let imported = 0;
@@ -49,9 +49,9 @@ function syncImagesWithFilesystem(db) {
         expectedPath: filePath 
       });
       
-      // Also remove from game_images
-      db.db.prepare('DELETE FROM game_images WHERE image_id = ?').run(img.id);
-      db.db.prepare('DELETE FROM images WHERE id = ?').run(img.id);
+      // Use abstraction layer methods
+      await db.deleteGameImages(img.id);
+      await db.deleteImage(img.id);
       cleaned++;
     }
   }
@@ -65,11 +65,8 @@ function syncImagesWithFilesystem(db) {
       const url = `/uploads/${file}`;
       
       try {
-        const stmt = db.db.prepare(`
-          INSERT INTO images (filename, url)
-          VALUES (?, ?)
-        `);
-        stmt.run(file, url);
+        // Use abstraction layer method
+        await db.addImage(file, url);
         
         logger.info('Image sync: Auto-imported file', { filename: file });
         imported++;

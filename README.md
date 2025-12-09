@@ -168,23 +168,106 @@ lichtblick/
 
 ## 🔧 Konfiguration
 
+### Datenbank-Konfiguration
+
+LichtBlick unterstützt **SQLite** (Standard) und **MySQL/MariaDB** über eine einheitliche Abstraktionsschicht.
+
+#### SQLite (Standard - Empfohlen für lokale Entwicklung)
+
+```env
+# Keine spezielle Konfiguration nötig
+# DB_TYPE wird automatisch auf sqlite gesetzt
+DB_PATH=../data/lichtblick.db
+```
+
+**Vorteile:**
+- ✅ Keine zusätzliche Server-Installation nötig
+- ✅ Perfekt für lokale Entwicklung
+- ✅ Sehr schnell für kleine bis mittlere Datenmengen
+- ✅ Zero-Config
+
+#### MySQL/MariaDB (Empfohlen für Produktions-Deployment)
+
+```env
+# Option 1: Explizit setzen
+DB_TYPE=mysql
+
+# Option 2: Automatisch via DB_HOST
+DB_HOST=localhost      # Wenn gesetzt, wird MySQL automatisch verwendet
+DB_PORT=3306
+DB_USER=lichtblick
+DB_PASSWORD=dein_passwort
+DB_NAME=lichtblick
+```
+
+**Vorteile:**
+- ✅ Bessere Performance bei vielen gleichzeitigen Zugriffen
+- ✅ Geeignet für Shared-Hosting-Umgebungen
+- ✅ Standard bei den meisten Web-Hostern
+
+**Datenbank erstellen:**
+```sql
+CREATE DATABASE lichtblick CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'lichtblick'@'localhost' IDENTIFIED BY 'dein_passwort';
+GRANT ALL PRIVILEGES ON lichtblick.* TO 'lichtblick'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+#### DB_TYPE=none (Nur für npm install auf Shared Hosting)
+
+```env
+DB_TYPE=none
+```
+
+⚠️ **Achtung:** In diesem Modus wird **keine Datenbank** geladen. Die Anwendung ist **nicht funktionsfähig**!
+
+**Verwendungszweck:** Auf Shared-Hosting-Umgebungen kann `better-sqlite3` nicht kompiliert werden. Setze `DB_TYPE=none` **nur** für `npm install`, und wechsle danach zu `DB_TYPE=mysql`:
+
+```bash
+# Auf Shared Hosting:
+export DB_TYPE=none
+npm install
+export DB_TYPE=mysql
+npm start
+```
+
+#### Automatische Backend-Auswahl
+
+Die Datenbank-Backend-Auswahl erfolgt automatisch nach folgender Logik:
+
+1. `DB_TYPE=none` → Keine Datenbank (nur für npm install)
+2. `DB_TYPE=mysql` **ODER** `DB_HOST` ist gesetzt → MySQL
+3. Sonst → SQLite (Standard-Fallback)
+
 ### Environment-Variablen (`.env`)
 
 ```env
 # Server
 PORT=3000
-HOST=0.0.0.0
 NODE_ENV=production
+
+# Database (siehe oben für Details)
+DB_TYPE=              # optional: mysql, sqlite, none
+DB_PATH=../data/lichtblick.db  # Nur für SQLite
+DB_HOST=              # Wenn gesetzt, wird MySQL verwendet
+DB_PORT=3306
+DB_USER=
+DB_PASSWORD=
+DB_NAME=lichtblick
 
 # Logging
 LOG_LEVEL=info
+LOG_FILE_PATH=../logs
 
-# Datenbankpfad
-DB_PATH=../data/lichtblick.db
+# Security
+ADMIN_PIN=1234
 
 # Upload-Limits
+UPLOAD_DIR=../data/uploads
 MAX_FILE_SIZE=10485760
-MAX_FILES=50
+
+# CORS
+CORS_ORIGIN=*
 ```
 
 ### Settings (Admin-UI)
