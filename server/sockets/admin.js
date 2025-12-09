@@ -7,7 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
-const db = require('../db/database');
+const db = require('../db');
 const { calculatePoints, isAnswerCorrect, getRevealCount } = require('../services/scoring');
 
 /*
