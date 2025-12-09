@@ -206,6 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupSocketListeners();
   setupModals();
   loadSpotlightSettings();
+  loadCinemaAutoRestart();
   
   // Connect via socket-adapter
   if (window.socketAdapter) {
@@ -285,6 +286,40 @@ function debounce(func, wait) {
   };
 }
 
+/**
+ * Check if canvas interaction is allowed in current phase
+ * Similar to beamer's isEventAllowedInPhase
+ */
+function isCanvasInteractionAllowed(interactionType) {
+  const rules = {
+    'lobby': {
+      spotlight: false,
+      mask: false,
+      reveal: false
+    },
+    'playing': {
+      spotlight: true,
+      mask: true,
+      reveal: true
+    },
+    'revealed': {
+      spotlight: false,
+      mask: false,
+      reveal: false
+    },
+    'ended': {
+      spotlight: false,
+      mask: false,
+      reveal: false
+    }
+  };
+  
+  const phaseRules = rules[state.phase];
+  if (!phaseRules) return false; // Unknown phase, deny
+  
+  return phaseRules[interactionType] || false;
+}
+
 // ============================================================
 // EVENT LISTENERS
 // ============================================================
@@ -301,6 +336,7 @@ function setupEventListeners() {
       window.socketAdapter?.emit('admin:clear_spotlight');
     }
     redrawCanvas();
+    saveSpotlightSettings(); // Save enabled state
   });
   
   dom.spotlightSize?.addEventListener('input', (e) => {
@@ -839,9 +875,20 @@ function renderGameStrip() {
         container.addEventListener('dragend', handleDragEnd);
       }
       
-      // Input change
-      input?.addEventListener('change', (e) => {
-        updateGameImageAnswer(id, e.target.value);
+      // Input change (both on blur and on click-away)
+      input?.addEventListener('input', (e) => {
+        // Live update local state as user types
+        const newAnswer = e.target.value;
+        const gi = state.gameImages.find(g => g.id === id);
+        if (gi) {
+          gi.correct_answer = newAnswer;
+        }
+      });
+      
+      input?.addEventListener('blur', (e) => {
+        // Save to server when field loses focus
+        const newAnswer = e.target.value;
+        updateGameImageAnswer(id, newAnswer);
       });
     }
     
@@ -970,14 +1017,17 @@ function loadImageToCanvas(imageId) {
 function redrawCanvas(mouseSpot = null) {
   if (!state.canvasImage || !dom.ctx) return;
   
+  // Check if mask overlay is allowed in current phase
+  const showMask = isCanvasInteractionAllowed('mask');
+  
   // Use SpotlightRenderer if available
   if (window.SpotlightRenderer) {
     window.SpotlightRenderer.render({
       ctx: dom.ctx,
       image: state.canvasImage,
-      spotlights: state.spotlightClicks,
-      mouseSpot: mouseSpot,
-      isRevealed: false,
+      spotlights: showMask ? state.spotlightClicks : [],
+      mouseSpot: showMask ? mouseSpot : null,
+      isRevealed: !showMask, // If mask not allowed, show as revealed
       preview: true,
       highlight: state.showRevealOverlay
     });
@@ -1033,13 +1083,19 @@ function canvasToImageCoords(canvasX, canvasY) {
 
 function startDrawing(e) {
   if (!state.spotlightEnabled || !state.canvasImage) return;
+  
+  // Check if spotlight interaction is allowed in current phase
+  if (!isCanvasInteractionAllowed('spotlight')) {
+    return; // Silently ignore in wrong phase (lobby, revealed, ended)
+  }
+  
   state.isDrawing = true;
   draw(e);
 }
 
 function handleMouseMove(e) {
-  // Only draw when actively dragging spotlight
-  if (state.isDrawing) {
+  // Only draw when actively dragging spotlight AND spotlight interaction is allowed
+  if (state.isDrawing && isCanvasInteractionAllowed('spotlight')) {
     draw(e);
   }
   // Note: Preview cursor without drawing was considered but not needed
@@ -1048,6 +1104,11 @@ function handleMouseMove(e) {
 
 function draw(e) {
   if (!state.isDrawing || !state.spotlightEnabled || !state.canvasImage) return;
+  
+  // Check if spotlight interaction is allowed in current phase
+  if (!isCanvasInteractionAllowed('spotlight')) {
+    return; // Silently ignore in wrong phase
+  }
   
   const rect = dom.canvas.getBoundingClientRect();
   const canvasX = (e.clientX - rect.left) * (dom.canvas.width / rect.width);
@@ -1078,14 +1139,17 @@ function draw(e) {
 function redrawCanvasWithMouse(mouseSpot) {
   if (!state.canvasImage || !dom.ctx) return;
   
+  // Check if mask overlay is allowed in current phase
+  const showMask = isCanvasInteractionAllowed('mask');
+  
   // Use SpotlightRenderer if available
   if (window.SpotlightRenderer) {
     window.SpotlightRenderer.render({
       ctx: dom.ctx,
       image: state.canvasImage,
-      spotlights: state.spotlightClicks,
-      mouseSpot: mouseSpot,
-      isRevealed: false,
+      spotlights: showMask ? state.spotlightClicks : [],
+      mouseSpot: showMask ? mouseSpot : null,
+      isRevealed: !showMask, // If mask not allowed, show as revealed
       preview: true,
       highlight: state.showRevealOverlay
     });
@@ -1109,6 +1173,11 @@ function stopDrawing() {
 
 function handleCanvasClick(e) {
   if (!state.spotlightEnabled || !state.canvasImage) return;
+  
+  // Check if spotlight interaction is allowed in current phase
+  if (!isCanvasInteractionAllowed('spotlight')) {
+    return; // Silently ignore in wrong phase
+  }
   
   const rect = dom.canvas.getBoundingClientRect();
   const canvasX = (e.clientX - rect.left) * (dom.canvas.width / rect.width);
@@ -1277,6 +1346,16 @@ function handleCinemaAutoToggle() {
   const newState = dom.cinemaAutoToggle?.checked || false;
   state.cinemaAutoRestart = newState;
   
+  // Save to localStorage
+  saveCinemaAutoRestart();
+  
+  // Wenn Kino-Automatik AKTIVIERT wird UND ein Bild ist aktiv → Kino-Modus starten
+  if (newState && state.phase === 'playing' && state.currentImageId && !state.cinemaMode) {
+    setTimeout(() => {
+      enterCinemaMode();
+    }, 300);
+  }
+  
   // Wenn Kino-Automatik deaktiviert wird UND Kino ist aktiv → Kino beenden
   if (!newState && state.cinemaMode) {
     exitCinemaMode();
@@ -1301,6 +1380,7 @@ function restartCinemaModeIfNeeded() {
 function saveSpotlightSettings() {
   try {
     localStorage.setItem('spotlightSettings', JSON.stringify({
+      enabled: state.spotlightEnabled,
       size: state.spotlightSize,
       strength: state.spotlightStrength,
       focus: state.spotlightFocus
@@ -1316,10 +1396,17 @@ function loadSpotlightSettings() {
       state.spotlightSize = settings.size ?? 80;
       state.spotlightStrength = settings.strength ?? 100;
       state.spotlightFocus = settings.focus ?? 70;
+      // Load enabled state from localStorage
+      if (settings.enabled !== undefined) {
+        state.spotlightEnabled = settings.enabled;
+      }
     }
   } catch (e) {}
   
-  // Sync UI
+  // Sync UI with state
+  if (dom.spotlightToggle) {
+    dom.spotlightToggle.checked = state.spotlightEnabled;
+  }
   if (dom.spotlightSize) {
     dom.spotlightSize.value = state.spotlightSize;
     dom.spotlightSizeValue.textContent = `${state.spotlightSize}px`;
@@ -1331,6 +1418,27 @@ function loadSpotlightSettings() {
   if (dom.spotlightFocus) {
     dom.spotlightFocus.value = state.spotlightFocus;
     dom.spotlightFocusValue.textContent = `${state.spotlightFocus}%`;
+  }
+}
+
+// Cinema auto-restart persistence
+function saveCinemaAutoRestart() {
+  try {
+    localStorage.setItem('cinemaAutoRestart', JSON.stringify(state.cinemaAutoRestart));
+  } catch (e) {}
+}
+
+function loadCinemaAutoRestart() {
+  try {
+    const saved = localStorage.getItem('cinemaAutoRestart');
+    if (saved !== null) {
+      state.cinemaAutoRestart = JSON.parse(saved);
+    }
+  } catch (e) {}
+  
+  // Sync UI with state
+  if (dom.cinemaAutoToggle) {
+    dom.cinemaAutoToggle.checked = state.cinemaAutoRestart;
   }
 }
 
@@ -1457,11 +1565,14 @@ function openRestartGameModal() {
  * 🔁 Spiel neu starten ausführen
  */
 function restartGame() {
+  console.log('🔁 Restart game initiated');
   const disconnectCheckbox = document.getElementById('restart-disconnect-players');
   const removePlayedCheckbox = document.getElementById('restart-remove-played');
   
   const disconnectPlayers = disconnectCheckbox?.checked || false;
   const removePlayedImages = removePlayedCheckbox?.checked || false;
+  
+  console.log('🔁 Restart options:', { disconnectPlayers, removePlayedImages });
   
   // Modal schließen
   const modal = document.getElementById('restart-game-modal');
@@ -1472,6 +1583,7 @@ function restartGame() {
     disconnectPlayers, 
     removePlayedImages 
   }, (response) => {
+    console.log('🔁 Restart game response:', response);
     if (response?.success) {
       toast('Spiel neu gestartet', 'success');
       state.phase = 'lobby';

@@ -42,6 +42,11 @@ body {
   display: flex;
 }
 
+/* Game Screen needs padding for fixed footer */
+#game-screen .container {
+  padding-bottom: 140px; /* Space for fixed footer */
+}
+
 .container {
   width: 100%;
   max-width: 600px;
@@ -372,9 +377,10 @@ input[type="text"]:focus {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   gap: 0.5rem;
-  max-height: 50vh;
+  max-height: calc(100vh - 400px); /* Dynamic height for scrolling */
   overflow-y: auto;
   padding: 0.5rem 0;
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
 .word-btn {
@@ -453,9 +459,22 @@ input[type="text"]:focus {
   color: var(--error);
 }
 
-/* Action Buttons */
-.action-buttons {
-  margin-top: 1rem;
+/* Fixed Footer for Game Screen */
+.game-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--card-bg);
+  padding: 1rem;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  border-top: 2px solid var(--border);
+}
+
+/* Hide footer when not in game screen */
+body:not(:has(#game-screen.active)) .game-footer {
+  display: none;
 }
 
 /* Submit Button States */
@@ -507,15 +526,42 @@ input[type="text"]:focus {
   50% { opacity: 0.8; }
 }
 
-/* Feedback Message */
-.feedback-message {
+/* Fixed Footer for Game Screen */
+.game-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
   background: var(--card-bg);
   padding: 1rem;
-  border-radius: 8px;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  border-top: 2px solid var(--border);
+}
+
+/* Hide footer when not in game screen */
+body:not(:has(#game-screen.active)) .game-footer {
+  display: none;
+}
+
+/* Feedback Message in Footer */
+.feedback-message {
   text-align: center;
-  margin-top: 1rem;
+  border-radius: 6px;
+  margin-bottom: 0.75rem;
   font-weight: 600;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  font-size: 0.875rem;
+  transition: all 0.3s ease-out;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  padding: 0;
+}
+
+.feedback-message:not(:empty) {
+  max-height: 100px;
+  opacity: 1;
+  padding: 0.75rem;
 }
 
 .feedback-message.success {
@@ -528,6 +574,12 @@ input[type="text"]:focus {
   background: #fef2f2;
   color: var(--error);
   border: 2px solid var(--error);
+}
+
+.feedback-message.info {
+  background: #eff6ff;
+  color: var(--primary);
+  border: 2px solid var(--primary);
 }
 
 .feedback-message.info {

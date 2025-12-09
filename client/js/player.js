@@ -5,6 +5,7 @@
  */
 
 // State
+let currentPhase = 'login';   // Phase: login | lobby | playing | ended
 let playerId = null;
 let playerName = null;
 let currentScore = 0;
@@ -41,6 +42,54 @@ document.addEventListener('DOMContentLoaded', () => {
   // Connection status
   updateConnectionStatus();
 });
+
+// ============================================
+// STATE VALIDATION
+// ============================================
+// Validates if an event is allowed in the current phase
+// Prevents processing events in wrong game states
+
+function isEventAllowedInPhase(eventName) {
+  const rules = {
+    // LOGIN: No game events allowed
+    'login': {
+      allowed: [],
+      denied: ['game:lobby_update', 'game:phase_change', 'game:image_revealed', 'game:leaderboard_update', 'player:lock_answer']
+    },
+    // LOBBY: Only lobby updates and phase changes
+    'lobby': {
+      allowed: ['game:lobby_update', 'game:phase_change', 'player:game_reset', 'player:force_disconnect'],
+      denied: ['game:image_revealed', 'game:leaderboard_update', 'player:lock_answer']
+    },
+    // PLAYING: All game events allowed
+    'playing': {
+      allowed: ['game:phase_change', 'game:image_revealed', 'game:leaderboard_update', 'player:lock_answer', 'player:game_reset', 'player:force_disconnect'],
+      denied: []
+    },
+    // ENDED: Only leaderboard and phase changes
+    'ended': {
+      allowed: ['game:leaderboard_update', 'game:phase_change', 'player:game_reset', 'player:force_disconnect'],
+      denied: ['game:image_revealed', 'player:lock_answer']
+    }
+  };
+  
+  const phaseRules = rules[currentPhase];
+  if (!phaseRules) return true; // Failsafe for unknown phases
+  
+  // Check denied first (explicit blocks)
+  if (phaseRules.denied.includes(eventName)) {
+    console.warn(`🚫 Player: Event "${eventName}" blocked in phase "${currentPhase}"`);
+    return false;
+  }
+  
+  // If allowed list exists and event is not in it, block
+  if (phaseRules.allowed.length > 0 && !phaseRules.allowed.includes(eventName)) {
+    console.warn(`🚫 Player: Event "${eventName}" not allowed in phase "${currentPhase}"`);
+    return false;
+  }
+  
+  return true;
+}
 
 function setupEventListeners() {
   // Login form
@@ -107,7 +156,8 @@ function handleLogin(e) {
       // Start keep-alive
       startKeepAlive();
       
-      // Show lobby
+      // Update phase and show lobby
+      currentPhase = 'lobby';
       showScreen('lobby');
       document.getElementById('player-name-display').textContent = playerName;
       
@@ -130,6 +180,7 @@ function attemptReconnect(savedPlayerId, savedPlayerName) {
       
       // Show appropriate screen based on game phase
       const phase = response.data.phase || 'lobby';
+      currentPhase = phase === 'playing' ? 'playing' : 'lobby';
       showScreen(phase === 'playing' ? 'game' : 'lobby');
       document.getElementById('player-name-display').textContent = playerName;
       document.getElementById('player-score').textContent = currentScore;
@@ -148,11 +199,20 @@ function attemptReconnect(savedPlayerId, savedPlayerName) {
 }
 
 function handleLobbyUpdate(data) {
+  if (!isEventAllowedInPhase('game:lobby_update')) return;
+  
   const count = data.totalPlayers || data.players?.length || 0;
   document.getElementById('lobby-player-count').textContent = count;
 }
 
 function handlePhaseChange(data) {
+  if (!isEventAllowedInPhase('game:phase_change')) return;
+  
+  const oldPhase = currentPhase;
+  currentPhase = data.phase;
+  
+  console.log(`Player: Phase changed from "${oldPhase}" to "${data.phase}"`);
+  
   if (data.phase === 'playing') {
     currentImageId = data.imageId;
     selectedWord = null;
@@ -185,6 +245,8 @@ function handlePhaseChange(data) {
 }
 
 function handleLeaderboardUpdate(data) {
+  if (!isEventAllowedInPhase('game:leaderboard_update')) return;
+  
   // Update player rank and score if in top players
   if (data.topPlayers) {
     const myEntry = data.topPlayers.find(p => p.name === playerName);
@@ -207,22 +269,15 @@ function handleLeaderboardUpdate(data) {
 }
 
 function handleImageRevealed(data) {
+  if (!isEventAllowedInPhase('game:image_revealed')) return;
+  
   // Bild wurde aufgedeckt - Wertung erfolgt jetzt
   const correctAnswer = data?.correctAnswer || '';
   const roundPoints = data?.roundPoints || 0; // Vom Server gesendet
   
-  // Bestimme welches Wort gewertet wurde:
-  // 1. Eingeloggtes Wort (lockedWord) hat Priorität
-  // 2. Fallback: aktuell ausgewähltes Wort (selectedWord)
-  const yourAnswer = lockedWord || selectedWord;
-  
-  // Wenn nur selectedWord (nicht eingeloggt), jetzt automatisch einloggen
-  if (!lockedWord && selectedWord) {
-    lockedWord = selectedWord;
-    lockedAt = Date.now();
-    // Sende ans Server (spätes Einloggen bei Reveal)
-    sendLockToServer(selectedWord, lockedAt);
-  }
+  // Nur eingeloggte Antworten werden gewertet
+  // Spätes Einloggen ist NICHT erlaubt (fair play)
+  const yourAnswer = lockedWord;
   
   // Prüfe ob richtig
   const isCorrect = yourAnswer && yourAnswer.toLowerCase() === correctAnswer.toLowerCase();
@@ -230,7 +285,7 @@ function handleImageRevealed(data) {
   // === UI: Wechsel zur Reveal-Ansicht ===
   document.getElementById('word-list-container').style.display = 'none';
   document.getElementById('submit-answer-btn').style.display = 'none';
-  document.getElementById('answer-feedback').style.display = 'none';
+  document.getElementById('answer-feedback').textContent = ''; // Clear feedback
   
   const revealResult = document.getElementById('reveal-result');
   revealResult.style.display = 'flex';
@@ -459,6 +514,25 @@ function handleSubmitAnswer() {
 }
 
 function lockAnswer(word) {
+  // Client-side validation
+  if (currentPhase !== 'playing') {
+    showFeedback('Aktion nur während Spielphase möglich', 'error');
+    console.warn('Cannot lock answer: not in playing phase');
+    return;
+  }
+  
+  if (!currentImageId) {
+    showFeedback('Kein aktives Bild', 'error');
+    console.warn('Cannot lock answer: no active image');
+    return;
+  }
+  
+  if (!currentWordList.includes(word)) {
+    showFeedback('Ungültiges Wort', 'error');
+    console.warn('Cannot lock answer: word not in list', word);
+    return;
+  }
+  
   lockedWord = word;
   lockedAt = Date.now();
   
@@ -515,10 +589,10 @@ function showFeedback(message, type) {
   const feedback = document.getElementById('answer-feedback');
   feedback.textContent = message;
   feedback.className = `feedback-message ${type}`;
-  feedback.style.display = 'block';
   
   setTimeout(() => {
-    feedback.style.display = 'none';
+    feedback.textContent = ''; // Clear text to trigger :empty CSS
+    feedback.className = 'feedback-message';
   }, 3000);
 }
 
@@ -647,9 +721,12 @@ function handleLeaveGame() {
 // ==========================================
 
 function handleGameReset(data) {
+  if (!isEventAllowedInPhase('player:game_reset')) return;
+  
   console.log('Player: Game reset received', data);
   
   // Soft reset: Keep player logged in, reset game state
+  currentPhase = 'lobby';
   selectedWord = null;
   lockedWord = null;
   lockedAt = null;
@@ -670,10 +747,13 @@ function handleGameReset(data) {
 }
 
 function handleForceDisconnect(data) {
+  if (!isEventAllowedInPhase('player:force_disconnect')) return;
+  
   console.log('Player: Force disconnect received', data);
   
   // Clear everything
   sessionStorage.clear();
+  currentPhase = 'login';
   playerId = null;
   playerName = null;
   currentScore = 0;

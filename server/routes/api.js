@@ -549,7 +549,7 @@ router.get('/words', async (req, res) => {
 });
 
 // GET /api/words/:imageId - Get word list for a specific image (deduplicated + shuffled)
-// The solution word is included but decoy duplicates are removed
+// Returns ALL correct answers from all game images + decoy words (deduplicated)
 router.get('/words/:imageId', async (req, res) => {
   try {
     const imageId = parseInt(req.params.imageId);
@@ -557,32 +557,34 @@ router.get('/words/:imageId', async (req, res) => {
     // 1. Get base word list (decoys/Täuschwörter)
     const wordList = db.getConfig('wordList') || [];
     
-    // 2. Get correct answer for this image from game_images
+    // 2. Get ALL correct answers from ALL images in the current game
     const game = db.getActiveGame();
-    let correctAnswer = null;
+    let correctAnswers = [];
     
     if (game) {
       const stmt = db.db.prepare(`
-        SELECT correct_answer FROM game_images 
-        WHERE game_id = ? AND image_id = ?
+        SELECT DISTINCT correct_answer 
+        FROM game_images 
+        WHERE game_id = ? AND correct_answer IS NOT NULL AND correct_answer != ''
       `);
-      const result = stmt.get(game.id, imageId);
-      correctAnswer = result?.correct_answer || null;
+      const results = stmt.all(game.id);
+      correctAnswers = results.map(r => r.correct_answer);
     }
     
-    // 3. Deduplicate: Remove solution word from decoy list (case-insensitive)
+    // 3. Deduplicate: Start with decoy words
     let finalWords = [...wordList];
     
-    if (correctAnswer) {
-      const solutionLower = correctAnswer.trim().toLowerCase();
+    // Remove any decoy words that match a solution (case-insensitive)
+    if (correctAnswers.length > 0) {
+      const solutionsLower = correctAnswers.map(a => a.trim().toLowerCase());
       
-      // Remove any word that matches the solution (case-insensitive)
-      finalWords = finalWords.filter(word => 
-        word.trim().toLowerCase() !== solutionLower
-      );
+      finalWords = finalWords.filter(word => {
+        const wordLower = word.trim().toLowerCase();
+        return !solutionsLower.includes(wordLower);
+      });
       
-      // Add the solution word (will be shuffled in)
-      finalWords.push(correctAnswer);
+      // Add all solution words
+      finalWords.push(...correctAnswers);
     }
     
     // 4. Shuffle the array (Fisher-Yates)
@@ -594,7 +596,7 @@ router.get('/words/:imageId', async (req, res) => {
     logger.debug('Word list generated for image', { 
       imageId, 
       totalWords: finalWords.length,
-      hasSolution: !!correctAnswer 
+      solutionsIncluded: correctAnswers.length 
     });
     
     res.json({ success: true, data: finalWords });

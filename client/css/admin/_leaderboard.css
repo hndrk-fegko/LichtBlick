@@ -102,23 +102,6 @@
   color: #cd7f32; /* Bronze */
 }
 
-/* Medal Emojis for Top 3 */
-.leaderboard-item:nth-child(1) .leaderboard-rank::before {
-  content: '🥇';
-}
-
-.leaderboard-item:nth-child(2) .leaderboard-rank::before {
-  content: '🥈';
-}
-
-.leaderboard-item:nth-child(3) .leaderboard-rank::before {
-  content: '🥉';
-}
-
-.leaderboard-item:nth-child(n+4) .leaderboard-rank::before {
-  content: attr(data-rank) '.';
-}
-
 /* Player Name */
 .leaderboard-name {
   font-weight: var(--font-weight-medium);

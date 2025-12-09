@@ -20,9 +20,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setupCanvas();
   setupSocketListeners();
   setupFullscreen();
-  loadStartImage();
   
-  // Connect as beamer
+  // Connect as beamer (initial state will handle image loading based on phase)
   window.socketAdapter.emit('beamer:connect');
 });
 
@@ -241,6 +240,16 @@ function handleInitialState(data) {
     }
   }
   
+  // Apply cached end image if in ended phase
+  if (phase === 'ended' && endImageUrl) {
+    showEndImage(endImageUrl);
+  }
+  
+  // Show start image only in lobby
+  if (phase === 'lobby') {
+    loadStartImage();
+  }
+  
   // Show appropriate screen
   const screenName = phase === 'lobby' ? 'lobby' : 
                      phase === 'playing' ? 'game' : 
@@ -297,15 +306,15 @@ function handleImageChanged(data) {
   currentCorrectAnswer = '';
   hideAnswerOverlay();
   
-  // IMPORTANT: Show screen FIRST (mask overlay), THEN load image
-  // This prevents flash of old image
+  // IMPORTANT: Show mask overlay FIRST (over old image), THEN load new image
+  // This prevents flash while loading, but keeps old image visible until new one is ready
   showScreen('game');
   
-  // Clear canvas to black while loading
-  currentImage = null;
-  redrawCanvas(); // Draws black canvas with mask overlay
+  // Keep old image visible with mask overlay while new image loads
+  // (don't set currentImage = null, that would show black screen)
+  redrawCanvas(); // Draws old image with mask overlay
   
-  // Then load new image
+  // Then load new image (will redraw when loaded)
   loadImage(data.imageId);
 }
 
@@ -474,11 +483,15 @@ function handleLeaderboardVisibility(data) {
   }
   
   const leaderboardContainer = document.getElementById('leaderboard');
+  const resultTitle = document.getElementById('result-title');
+  
   if (data.visible) {
     leaderboardContainer.style.display = 'flex';
+    if (resultTitle) resultTitle.style.display = 'block';
     console.log('   → Leaderboard angezeigt');
   } else {
     leaderboardContainer.style.display = 'none';
+    if (resultTitle) resultTitle.style.display = 'none';
     console.log('   → Leaderboard ausgeblendet');
   }
 }

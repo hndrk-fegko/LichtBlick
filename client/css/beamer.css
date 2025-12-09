@@ -306,6 +306,7 @@ body {
   display: grid;
   grid-template-columns: 80px 1fr auto;
   align-items: center;
+  gap: 2rem;
   padding: 1.5rem;
   margin-bottom: 1rem;
   background: #f8f9fa;

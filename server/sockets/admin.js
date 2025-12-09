@@ -77,7 +77,8 @@ module.exports = (io, socket) => {
   }
   function emitInitialState() {
     const host = socket.handshake.headers.host;
-    const game = db.getActiveGame() || { id: db.createGame(), status: 'lobby' };
+    // Use getLatestGame to include ended games
+    const game = db.getLatestGame() || { id: db.createGame(), status: 'lobby' };
     const players = db.getLeaderboard(game.id, 100);
     const adminPin = db.getConfig('adminPin') || '1234';
     const qrVisible = db.getConfig('qrEnabled') || false;
@@ -368,7 +369,13 @@ module.exports = (io, socket) => {
 
   // Admin spotlight click - fixierter Spotlight
   socket.on('admin:spotlight_click', ({ x, y, size, strength, focus }) => {
-    if (!socket.rooms.has('admin')) return; // Silent fail
+    const inAdminRoom = socket.rooms.has('admin');
+    logger.debug(`Spotlight click received, in admin room: ${inAdminRoom}`, { 
+      socketId: socket.id, 
+      rooms: Array.from(socket.rooms),
+      x, y 
+    });
+    if (!inAdminRoom) return; // Silent fail
     io.to('beamer').emit('beamer:spotlight_click', { 
       x, y, 
       size: size || 0.1,
