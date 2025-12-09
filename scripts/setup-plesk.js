@@ -163,7 +163,7 @@ async function createDatabaseSchema() {
   
   try {
     const mysql = require('mysql2/promise');
-    const schemaPath = path.join(__dirname, '../server/db/schema.sql');
+    const schemaPath = path.join(__dirname, '../server/db/schema.mysql.sql');
     const schemaSql = await fs.readFile(schemaPath, 'utf-8');
     
     const connection = await mysql.createConnection({
