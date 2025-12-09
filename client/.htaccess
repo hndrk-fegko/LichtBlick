@@ -1,0 +1,30 @@
+# LichtBlick - Plesk Reverse Proxy für Socket.IO
+# Diese Datei muss im client/ Ordner liegen (Dokumentenstamm)
+
+# Enable Rewrite Engine
+RewriteEngine On
+
+# WebSocket Proxy für Socket.IO
+RewriteCond %{REQUEST_URI} ^/socket.io [NC]
+RewriteCond %{HTTP:Upgrade} websocket [NC]
+RewriteCond %{HTTP:Connection} upgrade [NC]
+RewriteRule ^(.*)$ ws://127.0.0.1:3000/$1 [P,L]
+
+# Socket.IO HTTP Polling Fallback
+RewriteCond %{REQUEST_URI} ^/socket.io [NC]
+RewriteRule ^(.*)$ http://127.0.0.1:3000/$1 [P,L]
+
+# API Requests
+RewriteCond %{REQUEST_URI} ^/api [NC]
+RewriteRule ^(.*)$ http://127.0.0.1:3000/$1 [P,L]
+
+# Uploads
+RewriteCond %{REQUEST_URI} ^/uploads [NC]
+RewriteRule ^(.*)$ http://127.0.0.1:3000/$1 [P,L]
+
+# Preserve Host Header
+ProxyPreserveHost On
+
+# WebSocket Support
+ProxyPass /socket.io http://127.0.0.1:3000/socket.io
+ProxyPassReverse /socket.io http://127.0.0.1:3000/socket.io
