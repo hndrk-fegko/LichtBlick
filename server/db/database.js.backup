@@ -1,11 +1,10 @@
 /**
  * SQLite Database Manager
  * 
- * Wrapper for sql.js (pure JavaScript SQLite) for Plesk Shared Hosting compatibility
- * sql.js doesn't require native compilation (no node-gyp, C++, Python)
+ * Wrapper for better-sqlite3 with WAL mode and helper methods
  */
 
-const initSqlJs = require('sql.js');
+const Database = require('better-sqlite3');
 const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
@@ -15,196 +14,57 @@ const DB_PATH = path.join(__dirname, process.env.DB_PATH || '../../data/lichtbli
 class DatabaseManager {
   constructor() {
     this.db = null;
-    this.SQL = null;
-    this.isReady = false;
-    this.initPromise = null;
+    this.initialize();
   }
 
-  /**
-   * Initialize database (async)
-   * @returns {Promise<void>}
-   */
-  async initialize() {
-    if (this.initPromise) {
-      return this.initPromise;
-    }
-
-    this.initPromise = (async () => {
-      try {
-        // Ensure data directory exists
-        const dbDir = path.dirname(DB_PATH);
-        if (!fs.existsSync(dbDir)) {
-          fs.mkdirSync(dbDir, { recursive: true });
-        }
-
-        // Initialize sql.js
-        this.SQL = await initSqlJs();
-
-        // Load existing database or create new one
-        if (fs.existsSync(DB_PATH)) {
-          const buffer = fs.readFileSync(DB_PATH);
-          this.db = new this.SQL.Database(buffer);
-          logger.info('Database loaded from file', { path: DB_PATH });
-        } else {
-          this.db = new this.SQL.Database();
-          logger.info('New database created', { path: DB_PATH });
-        }
-
-        // sql.js doesn't support PRAGMA in the same way, but we can still execute them
-        // Note: WAL mode is not available in sql.js (in-memory with manual persistence)
-        try {
-          this.db.run('PRAGMA foreign_keys = ON');
-        } catch (e) {
-          logger.warn('PRAGMA foreign_keys failed (may not be supported)', { error: e.message });
-        }
-
-        // Apply migrations FIRST (before schema) to handle existing DBs
-        this.applyMigrations();
-
-        // Load schema (for new databases or to add new tables)
-        const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
-        this.db.exec(schema);
-
-        // Save to disk after initialization
-        this.save();
-
-        this.isReady = true;
-        logger.info('Database initialized', { path: DB_PATH, engine: 'sql.js' });
-      } catch (error) {
-        logger.error('Database initialization failed', { error: error.message });
-        throw error;
-      }
-    })();
-
-    return this.initPromise;
-  }
-
-  /**
-   * Save database to disk
-   * sql.js works in-memory, so we must explicitly persist changes
-   */
-  save() {
-    if (!this.db) return;
-    
+  initialize() {
     try {
-      const data = this.db.export();
-      const buffer = Buffer.from(data);
-      fs.writeFileSync(DB_PATH, buffer);
+      // Ensure data directory exists
+      const dbDir = path.dirname(DB_PATH);
+      if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true });
+      }
+
+      // Open database
+      this.db = new Database(DB_PATH);
+      
+      // Enable WAL mode for better concurrency
+      this.db.pragma('journal_mode = WAL');
+      this.db.pragma('synchronous = NORMAL');
+      this.db.pragma('foreign_keys = ON');
+      this.db.pragma('cache_size = -64000'); // 64MB cache
+      
+      // Apply migrations FIRST (before schema) to handle existing DBs
+      this.applyMigrations();
+      
+      // Load schema (for new databases or to add new tables)
+      const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
+      this.db.exec(schema);
+      
+      logger.info('Database initialized', { path: DB_PATH, mode: 'WAL' });
     } catch (error) {
-      logger.error('Failed to save database', { error: error.message });
+      logger.error('Database initialization failed', { error: error.message });
+      throw error;
     }
-  }
-
-  /**
-   * Execute SQL with auto-save
-   * @param {string} sql - SQL statement
-   * @returns {Object} - Result object
-   */
-  exec(sql) {
-    if (!this.db) throw new Error('Database not initialized');
-    const result = this.db.exec(sql);
-    this.save();
-    return result;
-  }
-
-  /**
-   * Run SQL statement (wrapper for compatibility)
-   * @param {string} sql - SQL statement
-   * @param {Array} params - Parameters
-   * @returns {Object} - Result with changes and lastInsertRowid
-   */
-  run(sql, params = []) {
-    if (!this.db) throw new Error('Database not initialized');
-    
-    this.db.run(sql, params);
-    
-    // Get last insert rowid and changes
-    const lastIdResult = this.db.exec('SELECT last_insert_rowid() as id');
-    const changesResult = this.db.exec('SELECT changes() as changes');
-    
-    const lastInsertRowid = lastIdResult[0]?.values[0]?.[0] || 0;
-    const changes = changesResult[0]?.values[0]?.[0] || 0;
-    
-    this.save();
-    
-    return { 
-      lastInsertRowid: Number(lastInsertRowid),
-      changes: Number(changes)
-    };
-  }
-
-  /**
-   * Get single row (wrapper for compatibility)
-   * @param {string} sql - SQL statement
-   * @param {Array} params - Parameters
-   * @returns {Object|null} - Row object or null
-   */
-  get(sql, params = []) {
-    if (!this.db) throw new Error('Database not initialized');
-    
-    const stmt = this.db.prepare(sql);
-    stmt.bind(params);
-    
-    if (stmt.step()) {
-      const columns = stmt.getColumnNames();
-      const values = stmt.get();
-      const row = {};
-      columns.forEach((col, i) => {
-        row[col] = values[i];
-      });
-      stmt.free();
-      return row;
-    }
-    
-    stmt.free();
-    return null;
-  }
-
-  /**
-   * Get all rows (wrapper for compatibility)
-   * @param {string} sql - SQL statement
-   * @param {Array} params - Parameters
-   * @returns {Array} - Array of row objects
-   */
-  all(sql, params = []) {
-    if (!this.db) throw new Error('Database not initialized');
-    
-    const stmt = this.db.prepare(sql);
-    stmt.bind(params);
-    
-    const rows = [];
-    const columns = stmt.getColumnNames();
-    
-    while (stmt.step()) {
-      const values = stmt.get();
-      const row = {};
-      columns.forEach((col, i) => {
-        row[col] = values[i];
-      });
-      rows.push(row);
-    }
-    
-    stmt.free();
-    return rows;
   }
 
   applyMigrations() {
     try {
       // 1. Ensure players.is_active column exists
-      const cols = this.all('PRAGMA table_info(players)');
+      const cols = this.db.prepare('PRAGMA table_info(players)').all();
       const hasIsActive = cols.some(c => c.name === 'is_active');
       logger.info('Migration check: players columns', { columns: cols.map(c => c.name) });
       if (!hasIsActive) {
-        this.exec('ALTER TABLE players ADD COLUMN is_active INTEGER DEFAULT 1');
-        this.exec('CREATE INDEX IF NOT EXISTS idx_players_active ON players(game_id, is_active)');
-        this.exec('UPDATE players SET is_active = 1 WHERE is_active IS NULL');
+        this.db.exec('ALTER TABLE players ADD COLUMN is_active INTEGER DEFAULT 1');
+        this.db.exec('CREATE INDEX IF NOT EXISTS idx_players_active ON players(game_id, is_active)');
+        this.db.exec('UPDATE players SET is_active = 1 WHERE is_active IS NULL');
         logger.info('Migration applied: players.is_active added');
       } else {
         logger.info('Migration skipped: players.is_active already exists');
       }
 
       // 2. Migrate images table to new schema (pool-based)
-      const imageCols = this.all('PRAGMA table_info(images)');
+      const imageCols = this.db.prepare('PRAGMA table_info(images)').all();
       const hasType = imageCols.some(c => c.name === 'type');
       const hasIsStartImage = imageCols.some(c => c.name === 'is_start_image');
       
@@ -213,7 +73,7 @@ class DatabaseManager {
         
         // SQLite doesn't support DROP COLUMN, so we need to rebuild the table
         // 1. Create game_images table first
-        this.exec(`
+        this.db.exec(`
           CREATE TABLE IF NOT EXISTS game_images (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             game_id INTEGER REFERENCES games(id) ON DELETE CASCADE,
@@ -227,18 +87,18 @@ class DatabaseManager {
         `);
         
         // 2. Migrate game images to junction table BEFORE rebuilding images table
-        const gameImagesOld = this.all("SELECT * FROM images WHERE type = 'game'");
+        const gameImagesOld = this.db.prepare("SELECT * FROM images WHERE type = 'game'").all();
+        const insertGameImg = this.db.prepare(`
+          INSERT OR IGNORE INTO game_images (game_id, image_id, correct_answer, display_order)
+          VALUES (?, ?, ?, ?)
+        `);
         
         for (const img of gameImagesOld) {
-          this.run(
-            `INSERT OR IGNORE INTO game_images (game_id, image_id, correct_answer, display_order)
-             VALUES (?, ?, ?, ?)`,
-            [img.game_id || 1, img.id, img.correct_answer, img.display_order || 0]
-          );
+          insertGameImg.run(img.game_id || 1, img.id, img.correct_answer, img.display_order || 0);
         }
         
         // 3. Create new images table structure
-        this.exec(`
+        this.db.exec(`
           CREATE TABLE IF NOT EXISTS images_new (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             filename TEXT NOT NULL,
@@ -250,7 +110,7 @@ class DatabaseManager {
         `);
         
         // 4. Copy data with migration logic
-        this.exec(`
+        this.db.exec(`
           INSERT INTO images_new (id, filename, url, is_start_image, is_end_image, uploaded_at)
           SELECT 
             id, 
@@ -263,14 +123,14 @@ class DatabaseManager {
         `);
         
         // 5. Drop old table and rename new one
-        this.exec('DROP TABLE images');
-        this.exec('ALTER TABLE images_new RENAME TO images');
+        this.db.exec('DROP TABLE images');
+        this.db.exec('ALTER TABLE images_new RENAME TO images');
         
         // 6. Create indexes
-        this.exec('CREATE INDEX IF NOT EXISTS idx_images_start ON images(is_start_image)');
-        this.exec('CREATE INDEX IF NOT EXISTS idx_images_end ON images(is_end_image)');
-        this.exec('CREATE INDEX IF NOT EXISTS idx_game_images_game ON game_images(game_id)');
-        this.exec('CREATE INDEX IF NOT EXISTS idx_game_images_order ON game_images(game_id, display_order)');
+        this.db.exec('CREATE INDEX IF NOT EXISTS idx_images_start ON images(is_start_image)');
+        this.db.exec('CREATE INDEX IF NOT EXISTS idx_images_end ON images(is_end_image)');
+        this.db.exec('CREATE INDEX IF NOT EXISTS idx_game_images_game ON game_images(game_id)');
+        this.db.exec('CREATE INDEX IF NOT EXISTS idx_game_images_order ON game_images(game_id, display_order)');
         
         logger.info('Migration applied: images table rebuilt with new schema', { 
           migratedGameImages: gameImagesOld.length 
@@ -278,8 +138,8 @@ class DatabaseManager {
       } else if (!hasIsStartImage) {
         // Fresh database or already migrated but missing columns
         logger.info('Migration: Adding is_start_image/is_end_image columns');
-        this.exec('ALTER TABLE images ADD COLUMN is_start_image INTEGER DEFAULT 0');
-        this.exec('ALTER TABLE images ADD COLUMN is_end_image INTEGER DEFAULT 0');
+        this.db.exec('ALTER TABLE images ADD COLUMN is_start_image INTEGER DEFAULT 0');
+        this.db.exec('ALTER TABLE images ADD COLUMN is_end_image INTEGER DEFAULT 0');
       }
 
       // 3. Ensure wordList config exists
@@ -289,11 +149,11 @@ class DatabaseManager {
       }
 
       // 4. Add locked_at column to answers table (Hybrid+ System)
-      const answerCols = this.all('PRAGMA table_info(answers)');
+      const answerCols = this.db.prepare('PRAGMA table_info(answers)').all();
       const hasLockedAt = answerCols.some(c => c.name === 'locked_at');
       if (!hasLockedAt) {
-        this.exec('ALTER TABLE answers ADD COLUMN locked_at INTEGER');
-        this.exec('CREATE INDEX IF NOT EXISTS idx_answers_locked ON answers(image_id, locked_at)');
+        this.db.exec('ALTER TABLE answers ADD COLUMN locked_at INTEGER');
+        this.db.exec('CREATE INDEX IF NOT EXISTS idx_answers_locked ON answers(image_id, locked_at)');
         logger.info('Migration applied: answers.locked_at added');
       }
       
@@ -312,7 +172,8 @@ class DatabaseManager {
    */
   getConfig(key) {
     try {
-      const row = this.get('SELECT value FROM config WHERE key = ?', [key]);
+      const stmt = this.db.prepare('SELECT value FROM config WHERE key = ?');
+      const row = stmt.get(key);
       return row ? JSON.parse(row.value) : null;
     } catch (error) {
       logger.error('Failed to get config', { key, error: error.message });
@@ -327,10 +188,10 @@ class DatabaseManager {
    */
   setConfig(key, value) {
     try {
-      this.run(
-        "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, strftime('%s','now'))",
-        [key, JSON.stringify(value)]
+      const stmt = this.db.prepare(
+        "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, strftime('%s','now'))"
       );
+      stmt.run(key, JSON.stringify(value));
     } catch (error) {
       logger.error('Failed to set config', { key, error: error.message });
       throw error;
@@ -343,7 +204,8 @@ class DatabaseManager {
    */
   getAllImages() {
     try {
-      return this.all('SELECT * FROM images ORDER BY uploaded_at DESC');
+      const stmt = this.db.prepare('SELECT * FROM images ORDER BY uploaded_at DESC');
+      return stmt.all();
     } catch (error) {
       logger.error('Failed to get images', { error: error.message });
       return [];
@@ -357,13 +219,14 @@ class DatabaseManager {
    */
   getGameImages(gameId) {
     try {
-      return this.all(`
+      const stmt = this.db.prepare(`
         SELECT gi.*, i.filename, i.url 
         FROM game_images gi
         JOIN images i ON gi.image_id = i.id
         WHERE gi.game_id = ?
         ORDER BY gi.display_order ASC
-      `, [gameId]);
+      `);
+      return stmt.all(gameId);
     } catch (error) {
       logger.error('Failed to get game images', { gameId, error: error.message });
       return [];
@@ -376,7 +239,8 @@ class DatabaseManager {
    */
   getStartImage() {
     try {
-      return this.get('SELECT * FROM images WHERE is_start_image = 1 LIMIT 1') || null;
+      const stmt = this.db.prepare('SELECT * FROM images WHERE is_start_image = 1 LIMIT 1');
+      return stmt.get() || null;
     } catch (error) {
       logger.error('Failed to get start image', { error: error.message });
       return null;
@@ -389,7 +253,8 @@ class DatabaseManager {
    */
   getEndImage() {
     try {
-      return this.get('SELECT * FROM images WHERE is_end_image = 1 LIMIT 1') || null;
+      const stmt = this.db.prepare('SELECT * FROM images WHERE is_end_image = 1 LIMIT 1');
+      return stmt.get() || null;
     } catch (error) {
       logger.error('Failed to get end image', { error: error.message });
       return null;
@@ -402,10 +267,10 @@ class DatabaseManager {
    */
   getActiveGame() {
     try {
-      return this.get(
-        'SELECT * FROM games WHERE status IN (?, ?) ORDER BY created_at DESC LIMIT 1',
-        ['lobby', 'playing']
+      const stmt = this.db.prepare(
+        'SELECT * FROM games WHERE status IN (?, ?) ORDER BY created_at DESC LIMIT 1'
       );
+      return stmt.get('lobby', 'playing');
     } catch (error) {
       logger.error('Failed to get active game', { error: error.message });
       return null;
@@ -418,7 +283,10 @@ class DatabaseManager {
    */
   getLatestGame() {
     try {
-      return this.get('SELECT * FROM games ORDER BY created_at DESC LIMIT 1');
+      const stmt = this.db.prepare(
+        'SELECT * FROM games ORDER BY created_at DESC LIMIT 1'
+      );
+      return stmt.get();
     } catch (error) {
       logger.error('Failed to get latest game', { error: error.message });
       return null;
@@ -431,7 +299,8 @@ class DatabaseManager {
    */
   createGame() {
     try {
-      const result = this.run('INSERT INTO games (status) VALUES (?)', ['lobby']);
+      const stmt = this.db.prepare('INSERT INTO games (status) VALUES (?)');
+      const result = stmt.run('lobby');
       logger.info('New game created', { gameId: result.lastInsertRowid });
       return result.lastInsertRowid;
     } catch (error) {
@@ -447,7 +316,8 @@ class DatabaseManager {
    */
   getPlayerBySocketId(socketId) {
     try {
-      return this.get('SELECT * FROM players WHERE socket_id = ?', [socketId]);
+      const stmt = this.db.prepare('SELECT * FROM players WHERE socket_id = ?');
+      return stmt.get(socketId);
     } catch (error) {
       logger.error('Failed to get player by socket', { socketId, error: error.message });
       return null;
@@ -463,10 +333,10 @@ class DatabaseManager {
    */
   createPlayer(gameId, name, socketId) {
     try {
-      const result = this.run(
-        'INSERT INTO players (game_id, name, socket_id) VALUES (?, ?, ?)',
-        [gameId, name, socketId]
+      const stmt = this.db.prepare(
+        'INSERT INTO players (game_id, name, socket_id) VALUES (?, ?, ?)'
       );
+      const result = stmt.run(gameId, name, socketId);
       logger.info('Player created', { playerId: result.lastInsertRowid, name });
       return result.lastInsertRowid;
     } catch (error) {
@@ -483,7 +353,7 @@ class DatabaseManager {
    */
   getLeaderboard(gameId, limit = 10) {
     try {
-      return this.all(`
+      const stmt = this.db.prepare(`
         SELECT 
           id, 
           name, 
@@ -493,7 +363,8 @@ class DatabaseManager {
         WHERE game_id = ? AND is_active = 1
         ORDER BY score DESC, joined_at ASC
         LIMIT ?
-      `, [gameId, limit]);
+      `);
+      return stmt.all(gameId, limit);
     } catch (error) {
       logger.error('Failed to get leaderboard', { gameId, error: error.message });
       return [];
@@ -506,10 +377,10 @@ class DatabaseManager {
    */
   updatePlayerKeepAlive(playerId) {
     try {
-      this.run(
-        "UPDATE players SET last_seen = strftime('%s','now') WHERE id = ?",
-        [playerId]
+      const stmt = this.db.prepare(
+        "UPDATE players SET last_seen = strftime('%s','now') WHERE id = ?"
       );
+      stmt.run(playerId);
     } catch (error) {
       logger.error('Failed to update keep-alive', { playerId, error: error.message });
     }
@@ -522,13 +393,14 @@ class DatabaseManager {
    */
   softDeleteInactivePlayers(gameId) {
     try {
-      const result = this.run(`
+      const stmt = this.db.prepare(`
         UPDATE players 
         SET is_active = 0 
         WHERE game_id = ? 
           AND is_active = 1 
           AND last_seen < strftime('%s','now') - 60
-      `, [gameId]);
+      `);
+      const result = stmt.run(gameId);
       if (result.changes > 0) {
         logger.info('Soft-deleted inactive players', { gameId, count: result.changes });
       }
@@ -546,10 +418,10 @@ class DatabaseManager {
    */
   restorePlayer(playerId, socketId) {
     try {
-      this.run(
-        "UPDATE players SET is_active = 1, socket_id = ?, last_seen = strftime('%s','now') WHERE id = ?",
-        [socketId, playerId]
+      const stmt = this.db.prepare(
+        "UPDATE players SET is_active = 1, socket_id = ?, last_seen = strftime('%s','now') WHERE id = ?"
       );
+      stmt.run(socketId, playerId);
       logger.info('Player restored', { playerId });
     } catch (error) {
       logger.error('Failed to restore player', { playerId, error: error.message });
@@ -564,10 +436,10 @@ class DatabaseManager {
    */
   getActivePlayerCount(gameId) {
     try {
-      const result = this.get(
-        'SELECT COUNT(*) as count FROM players WHERE game_id = ? AND is_active = 1',
-        [gameId]
+      const stmt = this.db.prepare(
+        'SELECT COUNT(*) as count FROM players WHERE game_id = ? AND is_active = 1'
       );
+      const result = stmt.get(gameId);
       return result ? result.count : 0;
     } catch (error) {
       logger.error('Failed to get active player count', { gameId, error: error.message });
@@ -583,13 +455,15 @@ class DatabaseManager {
   updateGameStatus(gameId, status) {
     try {
       // Set started_at when transitioning to 'playing', ended_at when 'ended'
+      let stmt;
       if (status === 'playing') {
-        this.run("UPDATE games SET status = ?, started_at = strftime('%s','now') WHERE id = ?", [status, gameId]);
+        stmt = this.db.prepare("UPDATE games SET status = ?, started_at = strftime('%s','now') WHERE id = ?");
       } else if (status === 'ended') {
-        this.run("UPDATE games SET status = ?, ended_at = strftime('%s','now') WHERE id = ?", [status, gameId]);
+        stmt = this.db.prepare("UPDATE games SET status = ?, ended_at = strftime('%s','now') WHERE id = ?");
       } else {
-        this.run("UPDATE games SET status = ? WHERE id = ?", [status, gameId]);
+        stmt = this.db.prepare("UPDATE games SET status = ? WHERE id = ?");
       }
+      stmt.run(status, gameId);
       logger.info('Game status updated', { category: 'GAME', gameId, status });
     } catch (error) {
       logger.error('Failed to update game status', { gameId, status, error: error.message });
@@ -666,15 +540,11 @@ class DatabaseManager {
    */
   close() {
     if (this.db) {
-      this.save(); // Save before closing
       this.db.close();
       logger.info('Database connection closed');
     }
   }
 }
 
-// Create singleton instance (will be initialized async)
-const dbManager = new DatabaseManager();
-
-// Export singleton that will be initialized
-module.exports = dbManager;
+// Export singleton instance
+module.exports = new DatabaseManager();

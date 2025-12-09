@@ -3,7 +3,7 @@
  * Handles test database preparation and cleanup
  */
 
-const Database = require('better-sqlite3');
+const initSqlJs = require('sql.js');
 const path = require('path');
 const fs = require('fs');
 const { testUsers } = require('./test-data');
@@ -77,15 +77,25 @@ async function getAdminToken() {
       return null;
     }
     
-    const db = new Database(dbPath, { readonly: true });
-    const result = db.prepare('SELECT value FROM config WHERE key = ?').get('adminToken');
-    db.close();
+    const SQL = await initSqlJs();
+    const buffer = fs.readFileSync(dbPath);
+    const db = new SQL.Database(buffer);
     
-    if (result && result.value) {
-      return result.value.replace(/"/g, ''); // Remove quotes if present
+    const stmt = db.prepare('SELECT value FROM config WHERE key = ?');
+    stmt.bind(['adminToken']);
+    
+    let token = null;
+    if (stmt.step()) {
+      const result = stmt.get();
+      if (result && result[0]) {
+        token = result[0].replace(/"/g, ''); // Remove quotes if present
+      }
     }
     
-    return null;
+    stmt.free();
+    db.close();
+    
+    return token;
   } catch (error) {
     console.error('Error getting admin token:', error.message);
     return null;
@@ -104,8 +114,10 @@ async function waitForDatabase(maxWaitMs = 30000) {
   while (Date.now() - startTime < maxWaitMs) {
     if (fs.existsSync(dbPath)) {
       try {
-        const db = new Database(dbPath, { readonly: true });
-        db.prepare('SELECT 1').get();
+        const SQL = await initSqlJs();
+        const buffer = fs.readFileSync(dbPath);
+        const db = new SQL.Database(buffer);
+        db.exec('SELECT 1');
         db.close();
         console.log('Database is ready');
         return true;
