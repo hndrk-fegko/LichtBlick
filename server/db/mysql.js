@@ -244,7 +244,7 @@ class MySQLDatabase {
 
   async getConfig(key) {
     try {
-      const [rows] = await this.pool.query('SELECT value FROM config WHERE `key` = ?', [key]);
+      const [rows] = await this.pool.query('SELECT `value` FROM config WHERE `key` = ?', [key]);
       return rows[0] ? JSON.parse(rows[0].value) : null;
     } catch (error) {
       logger.error('Failed to get config', { key, error: error.message });
@@ -255,7 +255,7 @@ class MySQLDatabase {
   async setConfig(key, value) {
     try {
       await this.pool.query(
-        "INSERT INTO config (`key`, value, updated_at) VALUES (?, ?, UNIX_TIMESTAMP()) ON DUPLICATE KEY UPDATE value = ?, updated_at = UNIX_TIMESTAMP()",
+        "INSERT INTO config (`key`, `value`, updated_at) VALUES (?, ?, UNIX_TIMESTAMP()) ON DUPLICATE KEY UPDATE `value` = ?, updated_at = UNIX_TIMESTAMP()",
         [key, JSON.stringify(value), JSON.stringify(value)]
       );
     } catch (error) {
@@ -375,13 +375,14 @@ class MySQLDatabase {
           id, 
           name, 
           score,
-          RANK() OVER (ORDER BY score DESC, joined_at ASC) as \`rank\`
+          RANK() OVER (ORDER BY score DESC, joined_at ASC) as player_rank
         FROM players
         WHERE game_id = ? AND is_active = 1
         ORDER BY score DESC, joined_at ASC
         LIMIT ?
       `, [gameId, limit]);
-      return rows;
+      // Rename player_rank back to rank for compatibility
+      return rows.map(row => ({ ...row, rank: row.player_rank, player_rank: undefined }));
     } catch (error) {
       logger.error('Failed to get leaderboard', { gameId, error: error.message });
       return [];
@@ -500,6 +501,34 @@ class MySQLDatabase {
     const host = await this.getConfig('playerJoinHost');
     if (host) return `http://${host}/player.html`;
     return null;
+  }
+
+  async deleteImage(imageId) {
+    try {
+      await this.pool.query('DELETE FROM images WHERE id = ?', [imageId]);
+    } catch (error) {
+      logger.error('Failed to delete image', { imageId, error: error.message });
+      throw error;
+    }
+  }
+
+  async deleteGameImages(imageId) {
+    try {
+      await this.pool.query('DELETE FROM game_images WHERE image_id = ?', [imageId]);
+    } catch (error) {
+      logger.error('Failed to delete game images', { imageId, error: error.message });
+      throw error;
+    }
+  }
+
+  async addImage(filename, url) {
+    try {
+      const [result] = await this.pool.query('INSERT INTO images (filename, url) VALUES (?, ?)', [filename, url]);
+      return result.insertId;
+    } catch (error) {
+      logger.error('Failed to add image', { filename, error: error.message });
+      throw error;
+    }
   }
 
   async close() {

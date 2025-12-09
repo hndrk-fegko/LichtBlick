@@ -432,6 +432,35 @@ class SQLiteDatabase {
     return null;
   }
 
+  async deleteImage(imageId) {
+    try {
+      this.db.prepare('DELETE FROM images WHERE id = ?').run(imageId);
+    } catch (error) {
+      logger.error('Failed to delete image', { imageId, error: error.message });
+      throw error;
+    }
+  }
+
+  async deleteGameImages(imageId) {
+    try {
+      this.db.prepare('DELETE FROM game_images WHERE image_id = ?').run(imageId);
+    } catch (error) {
+      logger.error('Failed to delete game images', { imageId, error: error.message });
+      throw error;
+    }
+  }
+
+  async addImage(filename, url) {
+    try {
+      const stmt = this.db.prepare('INSERT INTO images (filename, url) VALUES (?, ?)');
+      const result = stmt.run(filename, url);
+      return result.lastInsertRowid;
+    } catch (error) {
+      logger.error('Failed to add image', { filename, error: error.message });
+      throw error;
+    }
+  }
+
   async close() {
     if (this.db) {
       this.db.close();
