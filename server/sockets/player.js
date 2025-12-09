@@ -5,7 +5,7 @@
  */
 
 const logger = require('../utils/logger');
-const db = require('../db/database');
+const db = require('../db');
 const { validatePlayerName, validateAnswer } = require('../utils/validation');
 const {
   calculatePoints,

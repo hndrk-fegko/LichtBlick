@@ -16,7 +16,7 @@ const UPLOADS_DIR = path.join(__dirname, '../../data/uploads');
  * Sync database with filesystem
  * @param {Object} db - Database manager instance
  */
-function syncImagesWithFilesystem(db) {
+async function syncImagesWithFilesystem(db) {
   logger.info('Image sync: Starting validation...');
   
   // Ensure uploads directory exists
@@ -30,8 +30,8 @@ function syncImagesWithFilesystem(db) {
   const filesOnDisk = fs.readdirSync(UPLOADS_DIR)
     .filter(f => /\.(jpg|jpeg|png|gif|webp)$/i.test(f));
   
-  // Get all images from database
-  const imagesInDb = db.db.prepare('SELECT id, url, filename FROM images').all();
+  // Get all images from database using abstraction layer
+  const imagesInDb = await db.getAllImages();
   
   let cleaned = 0;
   let imported = 0;
@@ -49,9 +49,16 @@ function syncImagesWithFilesystem(db) {
         expectedPath: filePath 
       });
       
-      // Also remove from game_images
-      db.db.prepare('DELETE FROM game_images WHERE image_id = ?').run(img.id);
-      db.db.prepare('DELETE FROM images WHERE id = ?').run(img.id);
+      // Need direct SQL access for cleanup - use db.db for SQLite or db.pool for MySQL
+      if (db.db) {
+        // SQLite
+        db.db.prepare('DELETE FROM game_images WHERE image_id = ?').run(img.id);
+        db.db.prepare('DELETE FROM images WHERE id = ?').run(img.id);
+      } else if (db.pool) {
+        // MySQL
+        await db.pool.query('DELETE FROM game_images WHERE image_id = ?', [img.id]);
+        await db.pool.query('DELETE FROM images WHERE id = ?', [img.id]);
+      }
       cleaned++;
     }
   }
@@ -65,11 +72,21 @@ function syncImagesWithFilesystem(db) {
       const url = `/uploads/${file}`;
       
       try {
-        const stmt = db.db.prepare(`
-          INSERT INTO images (filename, url)
-          VALUES (?, ?)
-        `);
-        stmt.run(file, url);
+        // Need direct SQL access for import
+        if (db.db) {
+          // SQLite
+          const stmt = db.db.prepare(`
+            INSERT INTO images (filename, url)
+            VALUES (?, ?)
+          `);
+          stmt.run(file, url);
+        } else if (db.pool) {
+          // MySQL
+          await db.pool.query(`
+            INSERT INTO images (filename, url)
+            VALUES (?, ?)
+          `, [file, url]);
+        }
         
         logger.info('Image sync: Auto-imported file', { filename: file });
         imported++;

@@ -7,7 +7,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const router = express.Router();
-const db = require('../db/database');
+const db = require('../db');
 const logger = require('../utils/logger');
 const { validatePin } = require('../utils/validation');
 
