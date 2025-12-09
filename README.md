@@ -13,6 +13,9 @@
 
 **LichtBlick** ist ein interaktives Ratespiel für große Gruppen (30-150 Personen), ideal für Familiengottesdienste, Weihnachtsfeiern oder Gemeindefeste.
 
+> **⚠️ MySQL Migration in Progress:**  
+> Das Projekt wird gerade von SQLite auf MySQL/MariaDB umgestellt für bessere Kompatibilität mit Plesk Shared Hosting. Die Datenbank-Infrastruktur ist fertig, die Anwendungs-Code-Konvertierung läuft noch. Siehe [MYSQL_MIGRATION_STATUS.md](MYSQL_MIGRATION_STATUS.md) für Details.
+
 ### 🎯 Spielprinzip
 
 1. **Moderator** (Admin) wählt ein verdecktes Bild aus
@@ -37,25 +40,50 @@
 ### Voraussetzungen
 
 - **Node.js** >= 20.0.0 ([Download](https://nodejs.org/))
+- **MySQL/MariaDB** >= 5.7 (für MySQL-Version) oder SQLite (Legacy)
 - Moderner Browser (Chrome, Firefox, Edge, Safari)
-- Lokales WLAN-Netzwerk
+- Lokales WLAN-Netzwerk (oder Plesk Shared Hosting)
 
 ### Installation
+
+#### Option 1: MySQL/MariaDB (Für Plesk Shared Hosting)
 
 ```bash
 # 1. Repository klonen
 git clone https://github.com/hndrk-fegko/LichtBlick.git
 cd LichtBlick
 
-# 2. Dependencies installieren
+# 2. MySQL-Datenbank erstellen
+mysql -u root -p
+CREATE DATABASE lichtblick CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+exit
+
+# 3. Dependencies installieren
 cd server
 npm install
 
-# 3. Environment konfigurieren
+# 4. Environment konfigurieren
 cp .env.example .env
-# Optional: Anpassen (PORT, LOG_LEVEL, etc.)
+# Bearbeite .env und setze MySQL-Zugangsdaten:
+# DB_HOST=localhost
+# DB_PORT=3306
+# DB_USER=your_user
+# DB_PASSWORD=your_password
+# DB_NAME=lichtblick
 
-# 4. Server starten
+# 5. Server starten
+npm start
+```
+
+#### Option 2: SQLite (Legacy, nur für lokale Entwicklung)
+
+> **Hinweis:** SQLite funktioniert NICHT auf Plesk Shared Hosting wegen benötigter nativer Kompilierung.
+
+```bash
+# Für SQLite-Version siehe Branch 'main' vor MySQL-Migration
+git checkout <commit-vor-migration>
+cd server
+npm install
 npm start
 ```
 

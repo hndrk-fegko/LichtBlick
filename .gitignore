@@ -26,6 +26,9 @@ data/uploads/*
 
 # Backups
 backup_*/
+*.bak
+*-old.js
+*-new.js
 
 # IDE / Editor
 .vscode/
