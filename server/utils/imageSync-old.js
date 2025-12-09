@@ -13,10 +13,10 @@ const logger = require('./logger');
 const UPLOADS_DIR = path.join(__dirname, '../../data/uploads');
 
 /**
- * Sync database with filesystem (async version for MySQL)
+ * Sync database with filesystem
  * @param {Object} db - Database manager instance
  */
-async function syncImagesWithFilesystem(db) {
+function syncImagesWithFilesystem(db) {
   logger.info('Image sync: Starting validation...');
   
   // Ensure uploads directory exists
@@ -31,7 +31,7 @@ async function syncImagesWithFilesystem(db) {
     .filter(f => /\.(jpg|jpeg|png|gif|webp)$/i.test(f));
   
   // Get all images from database
-  const imagesInDb = await db.query('SELECT id, url, filename FROM images');
+  const imagesInDb = db.db.prepare('SELECT id, url, filename FROM images').all();
   
   let cleaned = 0;
   let imported = 0;
@@ -50,8 +50,8 @@ async function syncImagesWithFilesystem(db) {
       });
       
       // Also remove from game_images
-      await db.execute('DELETE FROM game_images WHERE image_id = ?', [img.id]);
-      await db.execute('DELETE FROM images WHERE id = ?', [img.id]);
+      db.db.prepare('DELETE FROM game_images WHERE image_id = ?').run(img.id);
+      db.db.prepare('DELETE FROM images WHERE id = ?').run(img.id);
       cleaned++;
     }
   }
@@ -65,10 +65,11 @@ async function syncImagesWithFilesystem(db) {
       const url = `/uploads/${file}`;
       
       try {
-        await db.execute(`
+        const stmt = db.db.prepare(`
           INSERT INTO images (filename, url)
           VALUES (?, ?)
-        `, [file, url]);
+        `);
+        stmt.run(file, url);
         
         logger.info('Image sync: Auto-imported file', { filename: file });
         imported++;

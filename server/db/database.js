@@ -1,164 +1,113 @@
 /**
- * SQLite Database Manager
+ * MySQL/MariaDB Database Manager
  * 
- * Wrapper for better-sqlite3 with WAL mode and helper methods
+ * Wrapper for mysql2 with connection pooling and helper methods
  */
 
-const Database = require('better-sqlite3');
+const mysql = require('mysql2/promise');
 const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
 
-const DB_PATH = path.join(__dirname, process.env.DB_PATH || '../../data/lichtblick.db');
-
 class DatabaseManager {
   constructor() {
-    this.db = null;
+    this.pool = null;
     this.initialize();
   }
 
-  initialize() {
+  async initialize() {
     try {
-      // Ensure data directory exists
-      const dbDir = path.dirname(DB_PATH);
-      if (!fs.existsSync(dbDir)) {
-        fs.mkdirSync(dbDir, { recursive: true });
-      }
+      // Create connection pool
+      this.pool = mysql.createPool({
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT || '3306'),
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_NAME || 'lichtblick',
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0,
+        enableKeepAlive: true,
+        keepAliveInitialDelay: 0
+      });
 
-      // Open database
-      this.db = new Database(DB_PATH);
+      // Test connection
+      const connection = await this.pool.getConnection();
+      logger.info('Database connected', { 
+        host: process.env.DB_HOST,
+        database: process.env.DB_NAME 
+      });
+      connection.release();
+
+      // Load and execute schema
+      await this.loadSchema();
       
-      // Enable WAL mode for better concurrency
-      this.db.pragma('journal_mode = WAL');
-      this.db.pragma('synchronous = NORMAL');
-      this.db.pragma('foreign_keys = ON');
-      this.db.pragma('cache_size = -64000'); // 64MB cache
+      // Apply migrations
+      await this.applyMigrations();
       
-      // Apply migrations FIRST (before schema) to handle existing DBs
-      this.applyMigrations();
-      
-      // Load schema (for new databases or to add new tables)
-      const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
-      this.db.exec(schema);
-      
-      logger.info('Database initialized', { path: DB_PATH, mode: 'WAL' });
+      logger.info('Database initialized successfully');
     } catch (error) {
       logger.error('Database initialization failed', { error: error.message });
       throw error;
     }
   }
 
-  applyMigrations() {
+  async loadSchema() {
     try {
-      // 1. Ensure players.is_active column exists
-      const cols = this.db.prepare('PRAGMA table_info(players)').all();
-      const hasIsActive = cols.some(c => c.name === 'is_active');
-      logger.info('Migration check: players columns', { columns: cols.map(c => c.name) });
-      if (!hasIsActive) {
-        this.db.exec('ALTER TABLE players ADD COLUMN is_active INTEGER DEFAULT 1');
-        this.db.exec('CREATE INDEX IF NOT EXISTS idx_players_active ON players(game_id, is_active)');
-        this.db.exec('UPDATE players SET is_active = 1 WHERE is_active IS NULL');
-        logger.info('Migration applied: players.is_active added');
-      } else {
-        logger.info('Migration skipped: players.is_active already exists');
-      }
-
-      // 2. Migrate images table to new schema (pool-based)
-      const imageCols = this.db.prepare('PRAGMA table_info(images)').all();
-      const hasType = imageCols.some(c => c.name === 'type');
-      const hasIsStartImage = imageCols.some(c => c.name === 'is_start_image');
+      const schemaPath = path.join(__dirname, 'schema.sql');
+      const schema = fs.readFileSync(schemaPath, 'utf8');
       
-      if (hasType) {
-        logger.info('Migration: Converting images table to pool-based schema (full rebuild)');
-        
-        // SQLite doesn't support DROP COLUMN, so we need to rebuild the table
-        // 1. Create game_images table first
-        this.db.exec(`
-          CREATE TABLE IF NOT EXISTS game_images (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            game_id INTEGER REFERENCES games(id) ON DELETE CASCADE,
-            image_id INTEGER REFERENCES images(id) ON DELETE CASCADE,
-            correct_answer TEXT,
-            display_order INTEGER DEFAULT 0,
-            is_played INTEGER DEFAULT 0,
-            added_at INTEGER DEFAULT (strftime('%s', 'now')),
-            UNIQUE(game_id, image_id)
-          )
-        `);
-        
-        // 2. Migrate game images to junction table BEFORE rebuilding images table
-        const gameImagesOld = this.db.prepare("SELECT * FROM images WHERE type = 'game'").all();
-        const insertGameImg = this.db.prepare(`
-          INSERT OR IGNORE INTO game_images (game_id, image_id, correct_answer, display_order)
-          VALUES (?, ?, ?, ?)
-        `);
-        
-        for (const img of gameImagesOld) {
-          insertGameImg.run(img.game_id || 1, img.id, img.correct_answer, img.display_order || 0);
-        }
-        
-        // 3. Create new images table structure
-        this.db.exec(`
-          CREATE TABLE IF NOT EXISTS images_new (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            filename TEXT NOT NULL,
-            url TEXT NOT NULL,
-            is_start_image INTEGER DEFAULT 0,
-            is_end_image INTEGER DEFAULT 0,
-            uploaded_at INTEGER DEFAULT (strftime('%s', 'now'))
-          )
-        `);
-        
-        // 4. Copy data with migration logic
-        this.db.exec(`
-          INSERT INTO images_new (id, filename, url, is_start_image, is_end_image, uploaded_at)
-          SELECT 
-            id, 
-            filename, 
-            url, 
-            CASE WHEN type = 'start' THEN 1 ELSE 0 END,
-            CASE WHEN type = 'end' THEN 1 ELSE 0 END,
-            uploaded_at
-          FROM images
-        `);
-        
-        // 5. Drop old table and rename new one
-        this.db.exec('DROP TABLE images');
-        this.db.exec('ALTER TABLE images_new RENAME TO images');
-        
-        // 6. Create indexes
-        this.db.exec('CREATE INDEX IF NOT EXISTS idx_images_start ON images(is_start_image)');
-        this.db.exec('CREATE INDEX IF NOT EXISTS idx_images_end ON images(is_end_image)');
-        this.db.exec('CREATE INDEX IF NOT EXISTS idx_game_images_game ON game_images(game_id)');
-        this.db.exec('CREATE INDEX IF NOT EXISTS idx_game_images_order ON game_images(game_id, display_order)');
-        
-        logger.info('Migration applied: images table rebuilt with new schema', { 
-          migratedGameImages: gameImagesOld.length 
-        });
-      } else if (!hasIsStartImage) {
-        // Fresh database or already migrated but missing columns
-        logger.info('Migration: Adding is_start_image/is_end_image columns');
-        this.db.exec('ALTER TABLE images ADD COLUMN is_start_image INTEGER DEFAULT 0');
-        this.db.exec('ALTER TABLE images ADD COLUMN is_end_image INTEGER DEFAULT 0');
+      // Split by semicolon and filter out empty statements
+      const statements = schema
+        .split(';')
+        .map(stmt => stmt.trim())
+        .filter(stmt => stmt.length > 0 && !stmt.startsWith('--'));
+      
+      // Execute each statement separately
+      for (const statement of statements) {
+        await this.pool.query(statement);
+      }
+      
+      logger.info('Schema loaded successfully');
+    } catch (error) {
+      logger.error('Failed to load schema', { error: error.message });
+      throw error;
+    }
+  }
+
+  async applyMigrations() {
+    try {
+      // Migration checks for existing databases
+      
+      // 1. Ensure players.is_active column exists
+      const [playerCols] = await this.pool.query(
+        'SHOW COLUMNS FROM players LIKE "is_active"'
+      );
+      
+      if (playerCols.length === 0) {
+        await this.pool.query('ALTER TABLE players ADD COLUMN is_active TINYINT(1) DEFAULT 1');
+        await this.pool.query('CREATE INDEX idx_players_active ON players(game_id, is_active)');
+        await this.pool.query('UPDATE players SET is_active = 1 WHERE is_active IS NULL');
+        logger.info('Migration applied: players.is_active added');
       }
 
-      // 3. Ensure wordList config exists
-      if (!this.getConfig('wordList')) {
-        this.setConfig('wordList', ['Apfel', 'Banane', 'Kirsche', 'Hund', 'Katze', 'Maus']);
+      // 2. Ensure wordList config exists
+      const wordListConfig = await this.getConfig('wordList');
+      if (!wordListConfig) {
+        await this.setConfig('wordList', ['Apfel', 'Banane', 'Kirsche', 'Hund', 'Katze', 'Maus']);
         logger.info('Migration applied: default wordList added');
       }
 
-      // 4. Add locked_at column to answers table (Hybrid+ System)
-      const answerCols = this.db.prepare('PRAGMA table_info(answers)').all();
-      const hasLockedAt = answerCols.some(c => c.name === 'locked_at');
-      if (!hasLockedAt) {
-        this.db.exec('ALTER TABLE answers ADD COLUMN locked_at INTEGER');
-        this.db.exec('CREATE INDEX IF NOT EXISTS idx_answers_locked ON answers(image_id, locked_at)');
+      // 3. Ensure answers.locked_at column exists
+      const [answerCols] = await this.pool.query(
+        'SHOW COLUMNS FROM answers LIKE "locked_at"'
+      );
+      
+      if (answerCols.length === 0) {
+        await this.pool.query('ALTER TABLE answers ADD COLUMN locked_at INT DEFAULT NULL');
+        await this.pool.query('CREATE INDEX idx_answers_locked ON answers(image_id, locked_at)');
         logger.info('Migration applied: answers.locked_at added');
       }
-      
-      // 5. Allow is_correct to be NULL (Hybrid+ - answer locked but not scored yet)
-      // SQLite doesn't support ALTER COLUMN, but the existing schema allows NULL anyway
 
     } catch (error) {
       logger.error('Migration step failed', { error: error.message });
@@ -170,11 +119,13 @@ class DatabaseManager {
    * @param {string} key - Config key
    * @returns {any} - Parsed JSON value or null
    */
-  getConfig(key) {
+  async getConfig(key) {
     try {
-      const stmt = this.db.prepare('SELECT value FROM config WHERE key = ?');
-      const row = stmt.get(key);
-      return row ? JSON.parse(row.value) : null;
+      const [rows] = await this.pool.query(
+        'SELECT value FROM config WHERE `key` = ?',
+        [key]
+      );
+      return rows.length > 0 ? JSON.parse(rows[0].value) : null;
     } catch (error) {
       logger.error('Failed to get config', { key, error: error.message });
       return null;
@@ -186,12 +137,12 @@ class DatabaseManager {
    * @param {string} key - Config key
    * @param {any} value - Value (will be JSON-serialized)
    */
-  setConfig(key, value) {
+  async setConfig(key, value) {
     try {
-      const stmt = this.db.prepare(
-        "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, strftime('%s','now'))"
+      await this.pool.query(
+        'INSERT INTO config (`key`, value, updated_at) VALUES (?, ?, UNIX_TIMESTAMP()) ON DUPLICATE KEY UPDATE value = ?, updated_at = UNIX_TIMESTAMP()',
+        [key, JSON.stringify(value), JSON.stringify(value)]
       );
-      stmt.run(key, JSON.stringify(value));
     } catch (error) {
       logger.error('Failed to set config', { key, error: error.message });
       throw error;
@@ -202,10 +153,12 @@ class DatabaseManager {
    * Get all images from pool
    * @returns {Array} - Array of image objects
    */
-  getAllImages() {
+  async getAllImages() {
     try {
-      const stmt = this.db.prepare('SELECT * FROM images ORDER BY uploaded_at DESC');
-      return stmt.all();
+      const [rows] = await this.pool.query(
+        'SELECT * FROM images ORDER BY uploaded_at DESC'
+      );
+      return rows;
     } catch (error) {
       logger.error('Failed to get images', { error: error.message });
       return [];
@@ -217,16 +170,16 @@ class DatabaseManager {
    * @param {number} gameId - Game ID
    * @returns {Array} - Array of game image objects with image details
    */
-  getGameImages(gameId) {
+  async getGameImages(gameId) {
     try {
-      const stmt = this.db.prepare(`
+      const [rows] = await this.pool.query(`
         SELECT gi.*, i.filename, i.url 
         FROM game_images gi
         JOIN images i ON gi.image_id = i.id
         WHERE gi.game_id = ?
         ORDER BY gi.display_order ASC
-      `);
-      return stmt.all(gameId);
+      `, [gameId]);
+      return rows;
     } catch (error) {
       logger.error('Failed to get game images', { gameId, error: error.message });
       return [];
@@ -237,10 +190,12 @@ class DatabaseManager {
    * Get start image
    * @returns {Object|null} - Start image or null
    */
-  getStartImage() {
+  async getStartImage() {
     try {
-      const stmt = this.db.prepare('SELECT * FROM images WHERE is_start_image = 1 LIMIT 1');
-      return stmt.get() || null;
+      const [rows] = await this.pool.query(
+        'SELECT * FROM images WHERE is_start_image = 1 LIMIT 1'
+      );
+      return rows.length > 0 ? rows[0] : null;
     } catch (error) {
       logger.error('Failed to get start image', { error: error.message });
       return null;
@@ -251,10 +206,12 @@ class DatabaseManager {
    * Get end image
    * @returns {Object|null} - End image or null
    */
-  getEndImage() {
+  async getEndImage() {
     try {
-      const stmt = this.db.prepare('SELECT * FROM images WHERE is_end_image = 1 LIMIT 1');
-      return stmt.get() || null;
+      const [rows] = await this.pool.query(
+        'SELECT * FROM images WHERE is_end_image = 1 LIMIT 1'
+      );
+      return rows.length > 0 ? rows[0] : null;
     } catch (error) {
       logger.error('Failed to get end image', { error: error.message });
       return null;
@@ -265,12 +222,13 @@ class DatabaseManager {
    * Get active game
    * @returns {Object|null} - Active game or null
    */
-  getActiveGame() {
+  async getActiveGame() {
     try {
-      const stmt = this.db.prepare(
-        'SELECT * FROM games WHERE status IN (?, ?) ORDER BY created_at DESC LIMIT 1'
+      const [rows] = await this.pool.query(
+        'SELECT * FROM games WHERE status IN (?, ?) ORDER BY created_at DESC LIMIT 1',
+        ['lobby', 'playing']
       );
-      return stmt.get('lobby', 'playing');
+      return rows.length > 0 ? rows[0] : null;
     } catch (error) {
       logger.error('Failed to get active game', { error: error.message });
       return null;
@@ -281,12 +239,12 @@ class DatabaseManager {
    * Get latest game (including ended games)
    * @returns {Object|null} - Latest game or null
    */
-  getLatestGame() {
+  async getLatestGame() {
     try {
-      const stmt = this.db.prepare(
+      const [rows] = await this.pool.query(
         'SELECT * FROM games ORDER BY created_at DESC LIMIT 1'
       );
-      return stmt.get();
+      return rows.length > 0 ? rows[0] : null;
     } catch (error) {
       logger.error('Failed to get latest game', { error: error.message });
       return null;
@@ -297,12 +255,14 @@ class DatabaseManager {
    * Create new game
    * @returns {number} - New game ID
    */
-  createGame() {
+  async createGame() {
     try {
-      const stmt = this.db.prepare('INSERT INTO games (status) VALUES (?)');
-      const result = stmt.run('lobby');
-      logger.info('New game created', { gameId: result.lastInsertRowid });
-      return result.lastInsertRowid;
+      const [result] = await this.pool.query(
+        'INSERT INTO games (status) VALUES (?)',
+        ['lobby']
+      );
+      logger.info('New game created', { gameId: result.insertId });
+      return result.insertId;
     } catch (error) {
       logger.error('Failed to create game', { error: error.message });
       throw error;
@@ -314,10 +274,13 @@ class DatabaseManager {
    * @param {string} socketId - Socket ID
    * @returns {Object|null} - Player or null
    */
-  getPlayerBySocketId(socketId) {
+  async getPlayerBySocketId(socketId) {
     try {
-      const stmt = this.db.prepare('SELECT * FROM players WHERE socket_id = ?');
-      return stmt.get(socketId);
+      const [rows] = await this.pool.query(
+        'SELECT * FROM players WHERE socket_id = ?',
+        [socketId]
+      );
+      return rows.length > 0 ? rows[0] : null;
     } catch (error) {
       logger.error('Failed to get player by socket', { socketId, error: error.message });
       return null;
@@ -331,14 +294,14 @@ class DatabaseManager {
    * @param {string} socketId - Socket ID
    * @returns {number} - New player ID
    */
-  createPlayer(gameId, name, socketId) {
+  async createPlayer(gameId, name, socketId) {
     try {
-      const stmt = this.db.prepare(
-        'INSERT INTO players (game_id, name, socket_id) VALUES (?, ?, ?)'
+      const [result] = await this.pool.query(
+        'INSERT INTO players (game_id, name, socket_id) VALUES (?, ?, ?)',
+        [gameId, name, socketId]
       );
-      const result = stmt.run(gameId, name, socketId);
-      logger.info('Player created', { playerId: result.lastInsertRowid, name });
-      return result.lastInsertRowid;
+      logger.info('Player created', { playerId: result.insertId, name });
+      return result.insertId;
     } catch (error) {
       logger.error('Failed to create player', { name, error: error.message });
       throw error;
@@ -351,20 +314,20 @@ class DatabaseManager {
    * @param {number} limit - Max number of players (default 10)
    * @returns {Array} - Array of player objects with ranks
    */
-  getLeaderboard(gameId, limit = 10) {
+  async getLeaderboard(gameId, limit = 10) {
     try {
-      const stmt = this.db.prepare(`
+      const [rows] = await this.pool.query(`
         SELECT 
           id, 
           name, 
           score,
-          RANK() OVER (ORDER BY score DESC, joined_at ASC) as rank
+          RANK() OVER (ORDER BY score DESC, joined_at ASC) as \`rank\`
         FROM players
         WHERE game_id = ? AND is_active = 1
         ORDER BY score DESC, joined_at ASC
         LIMIT ?
-      `);
-      return stmt.all(gameId, limit);
+      `, [gameId, limit]);
+      return rows;
     } catch (error) {
       logger.error('Failed to get leaderboard', { gameId, error: error.message });
       return [];
@@ -375,12 +338,12 @@ class DatabaseManager {
    * Update player last_seen timestamp (keep-alive)
    * @param {number} playerId - Player ID
    */
-  updatePlayerKeepAlive(playerId) {
+  async updatePlayerKeepAlive(playerId) {
     try {
-      const stmt = this.db.prepare(
-        "UPDATE players SET last_seen = strftime('%s','now') WHERE id = ?"
+      await this.pool.query(
+        'UPDATE players SET last_seen = UNIX_TIMESTAMP() WHERE id = ?',
+        [playerId]
       );
-      stmt.run(playerId);
     } catch (error) {
       logger.error('Failed to update keep-alive', { playerId, error: error.message });
     }
@@ -391,20 +354,20 @@ class DatabaseManager {
    * @param {number} gameId - Game ID
    * @returns {number} - Number of players marked inactive
    */
-  softDeleteInactivePlayers(gameId) {
+  async softDeleteInactivePlayers(gameId) {
     try {
-      const stmt = this.db.prepare(`
+      const [result] = await this.pool.query(`
         UPDATE players 
         SET is_active = 0 
         WHERE game_id = ? 
           AND is_active = 1 
-          AND last_seen < strftime('%s','now') - 60
-      `);
-      const result = stmt.run(gameId);
-      if (result.changes > 0) {
-        logger.info('Soft-deleted inactive players', { gameId, count: result.changes });
+          AND last_seen < UNIX_TIMESTAMP() - 60
+      `, [gameId]);
+      
+      if (result.affectedRows > 0) {
+        logger.info('Soft-deleted inactive players', { gameId, count: result.affectedRows });
       }
-      return result.changes;
+      return result.affectedRows;
     } catch (error) {
       logger.error('Failed to soft-delete inactive players', { gameId, error: error.message });
       return 0;
@@ -416,12 +379,12 @@ class DatabaseManager {
    * @param {number} playerId - Player ID
    * @param {string} socketId - New socket ID
    */
-  restorePlayer(playerId, socketId) {
+  async restorePlayer(playerId, socketId) {
     try {
-      const stmt = this.db.prepare(
-        "UPDATE players SET is_active = 1, socket_id = ?, last_seen = strftime('%s','now') WHERE id = ?"
+      await this.pool.query(
+        'UPDATE players SET is_active = 1, socket_id = ?, last_seen = UNIX_TIMESTAMP() WHERE id = ?',
+        [socketId, playerId]
       );
-      stmt.run(socketId, playerId);
       logger.info('Player restored', { playerId });
     } catch (error) {
       logger.error('Failed to restore player', { playerId, error: error.message });
@@ -434,13 +397,13 @@ class DatabaseManager {
    * @param {number} gameId - Game ID
    * @returns {number} - Count of active players
    */
-  getActivePlayerCount(gameId) {
+  async getActivePlayerCount(gameId) {
     try {
-      const stmt = this.db.prepare(
-        'SELECT COUNT(*) as count FROM players WHERE game_id = ? AND is_active = 1'
+      const [rows] = await this.pool.query(
+        'SELECT COUNT(*) as count FROM players WHERE game_id = ? AND is_active = 1',
+        [gameId]
       );
-      const result = stmt.get(gameId);
-      return result ? result.count : 0;
+      return rows.length > 0 ? rows[0].count : 0;
     } catch (error) {
       logger.error('Failed to get active player count', { gameId, error: error.message });
       return 0;
@@ -452,18 +415,23 @@ class DatabaseManager {
    * @param {number} gameId - Game ID
    * @param {string} status - New status (lobby|playing|ended)
    */
-  updateGameStatus(gameId, status) {
+  async updateGameStatus(gameId, status) {
     try {
-      // Set started_at when transitioning to 'playing', ended_at when 'ended'
-      let stmt;
+      let query;
+      let params;
+      
       if (status === 'playing') {
-        stmt = this.db.prepare("UPDATE games SET status = ?, started_at = strftime('%s','now') WHERE id = ?");
+        query = 'UPDATE games SET status = ?, started_at = UNIX_TIMESTAMP() WHERE id = ?';
+        params = [status, gameId];
       } else if (status === 'ended') {
-        stmt = this.db.prepare("UPDATE games SET status = ?, ended_at = strftime('%s','now') WHERE id = ?");
+        query = 'UPDATE games SET status = ?, ended_at = UNIX_TIMESTAMP() WHERE id = ?';
+        params = [status, gameId];
       } else {
-        stmt = this.db.prepare("UPDATE games SET status = ? WHERE id = ?");
+        query = 'UPDATE games SET status = ? WHERE id = ?';
+        params = [status, gameId];
       }
-      stmt.run(status, gameId);
+      
+      await this.pool.query(query, params);
       logger.info('Game status updated', { category: 'GAME', gameId, status });
     } catch (error) {
       logger.error('Failed to update game status', { gameId, status, error: error.message });
@@ -476,9 +444,9 @@ class DatabaseManager {
    * @param {string} pin - PIN string
    * @param {string} host - Host for join URL
    */
-  savePin(pin, host) {
+  async savePin(pin, host) {
     try {
-      this.setConfig('currentPin', {
+      await this.setConfig('currentPin', {
         pin,
         createdAt: new Date().toISOString(),
         joinUrl: `http://${host}/player.html`
@@ -494,8 +462,8 @@ class DatabaseManager {
    * Get current PIN object
    * @returns {Object|null}
    */
-  getPin() {
-    return this.getConfig('currentPin');
+  async getPin() {
+    return await this.getConfig('currentPin');
   }
 
   /**
@@ -503,8 +471,8 @@ class DatabaseManager {
    * @param {boolean} enabled
    * @param {number|null} expiresAtUnix - seconds since epoch, or null
    */
-  setProtection(enabled, expiresAtUnix = null) {
-    this.setConfig('adminProtection', {
+  async setProtection(enabled, expiresAtUnix = null) {
+    await this.setConfig('adminProtection', {
       enabled: !!enabled,
       expiresAt: typeof expiresAtUnix === 'number' ? expiresAtUnix : null
     });
@@ -514,34 +482,115 @@ class DatabaseManager {
    * Get protection state
    * @returns {{enabled:boolean, expiresAt:number|null}}
    */
-  getProtection() {
-    return this.getConfig('adminProtection') || { enabled: false, expiresAt: null };
+  async getProtection() {
+    const protection = await this.getConfig('adminProtection');
+    return protection || { enabled: false, expiresAt: null };
   }
 
   /**
    * Save player join host (domain:port)
    * @param {string} host
    */
-  savePlayerJoinHost(host) {
-    this.setConfig('playerJoinHost', host);
+  async savePlayerJoinHost(host) {
+    await this.setConfig('playerJoinHost', host);
   }
 
   /**
    * Get player join URL based on stored host
    */
-  getPlayerJoinUrl() {
-    const host = this.getConfig('playerJoinHost');
+  async getPlayerJoinUrl() {
+    const host = await this.getConfig('playerJoinHost');
     if (host) return `http://${host}/player.html`;
     return null;
   }
 
   /**
-   * Close database connection
+   * Execute a raw query (for compatibility with existing code)
+   * @param {string} sql - SQL query
+   * @param {Array} params - Query parameters
+   * @returns {Promise<Array>} - Query results
    */
-  close() {
-    if (this.db) {
-      this.db.close();
-      logger.info('Database connection closed');
+  async query(sql, params = []) {
+    try {
+      const [rows] = await this.pool.query(sql, params);
+      return rows;
+    } catch (error) {
+      logger.error('Query failed', { sql, error: error.message });
+      throw error;
+    }
+  }
+
+  /**
+   * Execute a raw query and return first row (for compatibility)
+   * @param {string} sql - SQL query
+   * @param {Array} params - Query parameters
+   * @returns {Promise<Object|null>} - First row or null
+   */
+  async queryOne(sql, params = []) {
+    try {
+      const [rows] = await this.pool.query(sql, params);
+      return rows.length > 0 ? rows[0] : null;
+    } catch (error) {
+      logger.error('Query one failed', { sql, error: error.message });
+      throw error;
+    }
+  }
+
+  /**
+   * Execute an INSERT/UPDATE/DELETE query
+   * @param {string} sql - SQL query
+   * @param {Array} params - Query parameters
+   * @returns {Promise<Object>} - Result with insertId and affectedRows
+   */
+  async execute(sql, params = []) {
+    try {
+      const [result] = await this.pool.query(sql, params);
+      return {
+        insertId: result.insertId,
+        affectedRows: result.affectedRows,
+        changes: result.affectedRows // For SQLite compatibility
+      };
+    } catch (error) {
+      logger.error('Execute failed', { sql, error: error.message });
+      throw error;
+    }
+  }
+
+  /**
+   * Begin a transaction
+   * @returns {Promise<Connection>} - Database connection for transaction
+   */
+  async beginTransaction() {
+    const connection = await this.pool.getConnection();
+    await connection.beginTransaction();
+    return connection;
+  }
+
+  /**
+   * Commit a transaction
+   * @param {Connection} connection - Database connection
+   */
+  async commitTransaction(connection) {
+    await connection.commit();
+    connection.release();
+  }
+
+  /**
+   * Rollback a transaction
+   * @param {Connection} connection - Database connection
+   */
+  async rollbackTransaction(connection) {
+    await connection.rollback();
+    connection.release();
+  }
+
+  /**
+   * Close database connection pool
+   */
+  async close() {
+    if (this.pool) {
+      await this.pool.end();
+      logger.info('Database connection pool closed');
     }
   }
 }
