@@ -50,25 +50,32 @@ class DatabaseManager {
 
   applyMigrations() {
     try {
-      // 1. Ensure players.is_active column exists
-      const cols = this.db.prepare('PRAGMA table_info(players)').all();
-      const hasIsActive = cols.some(c => c.name === 'is_active');
-      logger.info('Migration check: players columns', { columns: cols.map(c => c.name) });
-      if (!hasIsActive) {
-        this.db.exec('ALTER TABLE players ADD COLUMN is_active INTEGER DEFAULT 1');
-        this.db.exec('CREATE INDEX IF NOT EXISTS idx_players_active ON players(game_id, is_active)');
-        this.db.exec('UPDATE players SET is_active = 1 WHERE is_active IS NULL');
-        logger.info('Migration applied: players.is_active added');
+      // 1. Ensure players.is_active column exists (only if table exists)
+      const tableExists = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='players'").get();
+      if (tableExists) {
+        const cols = this.db.prepare('PRAGMA table_info(players)').all();
+        const hasIsActive = cols.some(c => c.name === 'is_active');
+        logger.info('Migration check: players columns', { columns: cols.map(c => c.name) });
+        if (!hasIsActive) {
+          this.db.exec('ALTER TABLE players ADD COLUMN is_active INTEGER DEFAULT 1');
+          this.db.exec('CREATE INDEX IF NOT EXISTS idx_players_active ON players(game_id, is_active)');
+          this.db.exec('UPDATE players SET is_active = 1 WHERE is_active IS NULL');
+          logger.info('Migration applied: players.is_active added');
+        } else {
+          logger.info('Migration skipped: players.is_active already exists');
+        }
       } else {
-        logger.info('Migration skipped: players.is_active already exists');
+        logger.info('Migration skipped: players table does not exist yet (new database)');
       }
 
       // 2. Migrate images table to new schema (pool-based)
-      const imageCols = this.db.prepare('PRAGMA table_info(images)').all();
-      const hasType = imageCols.some(c => c.name === 'type');
-      const hasIsStartImage = imageCols.some(c => c.name === 'is_start_image');
-      
-      if (hasType) {
+      const imagesTableExists = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='images'").get();
+      if (imagesTableExists) {
+        const imageCols = this.db.prepare('PRAGMA table_info(images)').all();
+        const hasType = imageCols.some(c => c.name === 'type');
+        const hasIsStartImage = imageCols.some(c => c.name === 'is_start_image');
+        
+        if (hasType) {
         logger.info('Migration: Converting images table to pool-based schema (full rebuild)');
         
         // SQLite doesn't support DROP COLUMN, so we need to rebuild the table
@@ -135,26 +142,35 @@ class DatabaseManager {
         logger.info('Migration applied: images table rebuilt with new schema', { 
           migratedGameImages: gameImagesOld.length 
         });
-      } else if (!hasIsStartImage) {
-        // Fresh database or already migrated but missing columns
-        logger.info('Migration: Adding is_start_image/is_end_image columns');
-        this.db.exec('ALTER TABLE images ADD COLUMN is_start_image INTEGER DEFAULT 0');
-        this.db.exec('ALTER TABLE images ADD COLUMN is_end_image INTEGER DEFAULT 0');
+        } else if (!hasIsStartImage) {
+          // Fresh database or already migrated but missing columns
+          logger.info('Migration: Adding is_start_image/is_end_image columns');
+          this.db.exec('ALTER TABLE images ADD COLUMN is_start_image INTEGER DEFAULT 0');
+          this.db.exec('ALTER TABLE images ADD COLUMN is_end_image INTEGER DEFAULT 0');
+        }
+      } else {
+        logger.info('Migration skipped: images table does not exist yet (new database)');
       }
 
-      // 3. Ensure wordList config exists
-      if (!this.getConfig('wordList')) {
+      // 3. Ensure wordList config exists (skip if config table doesn't exist yet)
+      const configTableExists = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='config'").get();
+      if (configTableExists && !this.getConfig('wordList')) {
         this.setConfig('wordList', ['Apfel', 'Banane', 'Kirsche', 'Hund', 'Katze', 'Maus']);
         logger.info('Migration applied: default wordList added');
       }
 
       // 4. Add locked_at column to answers table (Hybrid+ System)
-      const answerCols = this.db.prepare('PRAGMA table_info(answers)').all();
-      const hasLockedAt = answerCols.some(c => c.name === 'locked_at');
-      if (!hasLockedAt) {
-        this.db.exec('ALTER TABLE answers ADD COLUMN locked_at INTEGER');
-        this.db.exec('CREATE INDEX IF NOT EXISTS idx_answers_locked ON answers(image_id, locked_at)');
-        logger.info('Migration applied: answers.locked_at added');
+      const answersTableExists = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='answers'").get();
+      if (answersTableExists) {
+        const answerCols = this.db.prepare('PRAGMA table_info(answers)').all();
+        const hasLockedAt = answerCols.some(c => c.name === 'locked_at');
+        if (!hasLockedAt) {
+          this.db.exec('ALTER TABLE answers ADD COLUMN locked_at INTEGER');
+          this.db.exec('CREATE INDEX IF NOT EXISTS idx_answers_locked ON answers(image_id, locked_at)');
+          logger.info('Migration applied: answers.locked_at added');
+        }
+      } else {
+        logger.info('Migration skipped: answers table does not exist yet (new database)');
       }
       
       // 5. Allow is_correct to be NULL (Hybrid+ - answer locked but not scored yet)

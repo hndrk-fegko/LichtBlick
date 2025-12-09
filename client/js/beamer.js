@@ -290,13 +290,23 @@ function handleImageChanged(data) {
     return;
   }
   
+  // Reset state
   spotlightClicks = [];
   currentMouseSpot = null;
   isRevealed = false;
   currentCorrectAnswer = '';
   hideAnswerOverlay();
-  loadImage(data.imageId);
+  
+  // IMPORTANT: Show screen FIRST (mask overlay), THEN load image
+  // This prevents flash of old image
   showScreen('game');
+  
+  // Clear canvas to black while loading
+  currentImage = null;
+  redrawCanvas(); // Draws black canvas with mask overlay
+  
+  // Then load new image
+  loadImage(data.imageId);
 }
 
 function loadImage(imageId) {

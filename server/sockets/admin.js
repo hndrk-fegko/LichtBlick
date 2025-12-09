@@ -296,12 +296,18 @@ module.exports = (io, socket) => {
     }
   });
 
-  // Select image without phase change
+  // Select image without broadcasting (internal admin selection only)
   socket.on('admin:select_image', ({ imageId }, callback) => {
     if (!requireAdmin('admin:select_image', callback)) return;
     try {
-      const image = loadAndBroadcastImage(imageId, null);
+      // Only update internal state, DO NOT broadcast to beamer
+      const stmt = db.db.prepare('SELECT * FROM images WHERE id = ?');
+      const image = stmt.get(imageId);
       if (!image) return callback && callback({ success: false, message: 'Image not found' });
+      
+      // Store current selection (for admin UI state only)
+      db.setConfig('currentImageId', imageId);
+      
       callback && callback({ success: true });
     } catch (error) {
       logger.error('Select image failed', { error: error.message });
