@@ -1,0 +1,49 @@
+# LichtBlick - Plesk Reverse Proxy für Socket.IO
+# Diese Datei muss im client/ Ordner liegen (Dokumentenstamm)
+
+RewriteEngine On
+
+# WICHTIG: Proxy Module aktivieren
+<IfModule mod_proxy.c>
+  ProxyRequests Off
+  ProxyPreserveHost On
+  
+  # WebSocket Support für Socket.IO
+  <Location "/socket.io">
+    ProxyPass http://127.0.0.1:3000/socket.io
+    ProxyPassReverse http://127.0.0.1:3000/socket.io
+    
+    # WebSocket Upgrade
+    RewriteEngine On
+    RewriteCond %{HTTP:Upgrade} websocket [NC]
+    RewriteCond %{HTTP:Connection} upgrade [NC]
+    RewriteRule ^(.*)$ ws://127.0.0.1:3000/socket.io/$1 [P,L]
+  </Location>
+  
+  # API Proxy
+  <Location "/api">
+    ProxyPass http://127.0.0.1:3000/api
+    ProxyPassReverse http://127.0.0.1:3000/api
+  </Location>
+  
+  # Uploads Proxy
+  <Location "/uploads">
+    ProxyPass http://127.0.0.1:3000/uploads
+    ProxyPassReverse http://127.0.0.1:3000/uploads
+  </Location>
+</IfModule>
+
+# Fallback wenn mod_proxy nicht verfügbar
+<IfModule !mod_proxy.c>
+  # Socket.IO umleiten
+  RewriteCond %{REQUEST_URI} ^/socket\.io [NC]
+  RewriteRule ^(.*)$ http://127.0.0.1:3000/$1 [P,L]
+  
+  # API umleiten
+  RewriteCond %{REQUEST_URI} ^/api [NC]
+  RewriteRule ^(.*)$ http://127.0.0.1:3000/$1 [P,L]
+  
+  # Uploads umleiten
+  RewriteCond %{REQUEST_URI} ^/uploads [NC]
+  RewriteRule ^(.*)$ http://127.0.0.1:3000/$1 [P,L]
+</IfModule>

@@ -124,19 +124,14 @@ function isAnswerCorrect(answer, correctAnswer) {
 /**
  * Get current reveal count for an image
  * 
- * @param {Object} db - Database instance
+ * @param {Object} db - Database interface instance
  * @param {number} gameId - Game ID
  * @param {number} imageId - Image ID
- * @returns {number} - Reveal count
+ * @returns {Promise<number>} - Reveal count
  */
-function getRevealCount(db, gameId, imageId) {
+async function getRevealCount(db, gameId, imageId) {
   try {
-    const stmt = db.prepare(`
-      SELECT reveal_count FROM image_states 
-      WHERE game_id = ? AND image_id = ?
-    `);
-    const row = stmt.get(gameId, imageId);
-    return row ? row.reveal_count : 0;
+    return await db.getRevealCount(gameId, imageId);
   } catch (error) {
     logger.error('Failed to get reveal count', { error: error.message, gameId, imageId });
     return 0;
@@ -147,18 +142,14 @@ function getRevealCount(db, gameId, imageId) {
  * Get the position of the next correct answer for an image (1st, 2nd, 3rd, etc.)
  * Returns 1 if no correct answers yet, 2 if one exists, etc.
  * 
- * @param {Object} db - Database instance
+ * @param {Object} db - Database interface instance
  * @param {number} imageId - Image ID
- * @returns {number} - Position (1-indexed)
+ * @returns {Promise<number>} - Position (1-indexed)
  */
-function getCorrectAnswerPosition(db, imageId) {
+async function getCorrectAnswerPosition(db, imageId) {
   try {
-    const stmt = db.prepare(`
-      SELECT COUNT(*) as count FROM answers 
-      WHERE image_id = ? AND is_correct = 1
-    `);
-    const row = stmt.get(imageId);
-    return (row?.count || 0) + 1; // Next position (1-indexed)
+    const count = await db.getCorrectAnswerCount(imageId);
+    return count + 1; // Next position (1-indexed)
   } catch (error) {
     logger.error('Failed to get correct answer position', { error: error.message, imageId });
     return 1;
@@ -169,30 +160,26 @@ function getCorrectAnswerPosition(db, imageId) {
  * Check if this is the first correct answer for an image
  * (Legacy wrapper for backwards compatibility)
  * 
- * @param {Object} db - Database instance
+ * @param {Object} db - Database interface instance
  * @param {number} imageId - Image ID
- * @returns {boolean} - Is first correct?
+ * @returns {Promise<boolean>} - Is first correct?
  */
-function isFirstCorrectAnswer(db, imageId) {
-  return getCorrectAnswerPosition(db, imageId) === 1;
+async function isFirstCorrectAnswer(db, imageId) {
+  const pos = await getCorrectAnswerPosition(db, imageId);
+  return pos === 1;
 }
 
 /**
  * Check if player already answered this image
  * 
- * @param {Object} db - Database instance
+ * @param {Object} db - Database interface instance
  * @param {number} playerId - Player ID
  * @param {number} imageId - Image ID
- * @returns {boolean} - Has answered?
+ * @returns {Promise<boolean>} - Has answered?
  */
-function hasPlayerAnswered(db, playerId, imageId) {
+async function hasPlayerAnswered(db, playerId, imageId) {
   try {
-    const stmt = db.prepare(`
-      SELECT COUNT(*) as count FROM answers 
-      WHERE player_id = ? AND image_id = ?
-    `);
-    const row = stmt.get(playerId, imageId);
-    return row.count > 0;
+    return await db.hasPlayerAnsweredImage(playerId, imageId);
   } catch (error) {
     logger.error('Failed to check player answer', { error: error.message, playerId, imageId });
     return false;

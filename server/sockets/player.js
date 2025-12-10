@@ -19,9 +19,16 @@ module.exports = (io, socket) => {
   // Player joins game
   socket.on('player:join', async ({ name }, callback) => {
     try {
+      // Callback ist optional (für instabile Verbindungen)
+      const respond = (response) => {
+        if (typeof callback === 'function') {
+          callback(response);
+        }
+      };
+      
       // Validate name
       if (!validatePlayerName(name)) {
-        return callback({ 
+        return respond({ 
           success: false, 
           message: 'Invalid name (2-20 characters, alphanumeric only)' 
         });
@@ -36,7 +43,7 @@ module.exports = (io, socket) => {
       
       // Check if game allows joining
       if (game.status === 'ended') {
-        return callback({ 
+        return respond({ 
           success: false, 
           message: 'Game has ended. Please wait for a new game.' 
         });
@@ -69,11 +76,12 @@ module.exports = (io, socket) => {
       // Broadcast lobby update to all (players, admin, beamer)
       io.emit('game:lobby_update', {
         players: players.map(p => ({ id: p.id, name: p.name, score: p.score })),
-        totalPlayers: players.length
+        totalPlayers: players.length,
+        gameRunning: game.status === 'playing'
       });
       
       // Return success to player
-      callback({ 
+      respond({ 
         success: true, 
         data: { 
           playerId, 
@@ -83,7 +91,7 @@ module.exports = (io, socket) => {
       });
     } catch (error) {
       logger.error('Player join failed', { error: error.message, name });
-      callback({ success: false, message: 'Join failed' });
+      respond({ success: false, message: 'Join failed' });
     }
   });
 
@@ -119,44 +127,37 @@ module.exports = (io, socket) => {
       const lockTimestamp = lockedAt || Date.now();
       
       // Check if player already has a locked answer for this image
-      const existingStmt = db.db.prepare(`
-        SELECT id FROM answers 
-        WHERE player_id = ? AND image_id = ?
-      `);
-      const existing = existingStmt.get(socket.playerId, imageId);
+      const hasAnswered = await db.hasPlayerAnsweredImage(socket.playerId, imageId);
       
-      if (existing) {
-        // Update existing answer (player changed their mind)
-        const updateStmt = db.db.prepare(`
-          UPDATE answers 
-          SET answer = ?, locked_at = ?, is_correct = NULL, points_earned = 0
-          WHERE player_id = ? AND image_id = ?
-        `);
-        updateStmt.run(answer, lockTimestamp, socket.playerId, imageId);
-        
-        logger.game('Answer updated (re-locked)', { 
+      if (hasAnswered) {
+        // Player wants to change their answer - allow update before reveal
+        logger.game('Player changing answer', { 
           playerId: socket.playerId, 
           playerName: socket.playerName,
-          imageId, 
-          answer,
-          lockedAt: lockTimestamp
+          imageId,
+          newAnswer: answer
         });
-      } else {
-        // Insert new locked answer (not scored yet - is_correct = NULL)
-        const insertStmt = db.db.prepare(`
-          INSERT INTO answers (player_id, image_id, answer, is_correct, points_earned, locked_at)
-          VALUES (?, ?, ?, NULL, 0, ?)
-        `);
-        insertStmt.run(socket.playerId, imageId, answer, lockTimestamp);
         
-        logger.game('Answer locked', { 
-          playerId: socket.playerId, 
-          playerName: socket.playerName,
-          imageId, 
-          answer,
-          lockedAt: lockTimestamp
+        // Update existing answer with new answer and new timestamp
+        await db.updatePlayerAnswer(socket.playerId, imageId, answer, lockTimestamp);
+        
+        // Notify admin that player changed their answer
+        io.to('admin').emit('admin:answer_changed', {
+          success: true,
+          data: {
+            playerId: socket.playerId,
+            playerName: socket.playerName,
+            imageId,
+            answer,
+            lockedAt: lockTimestamp
+          }
         });
+        
+        return callback({ success: true, data: { answer, lockedAt: lockTimestamp, changed: true } });
       }
+      
+      // Insert new locked answer (not scored yet - is_correct = NULL, points = 0)
+      await db.saveAnswer(socket.playerId, imageId, answer, false, 0, lockTimestamp);
       
       // Notify admin that player locked an answer
       io.to('admin').emit('admin:answer_locked', {
@@ -182,8 +183,7 @@ module.exports = (io, socket) => {
   socket.on('player:reconnect', async ({ playerId }, callback) => {
     try {
       // Get player from database
-      const stmt = db.db.prepare('SELECT * FROM players WHERE id = ?');
-      const player = stmt.get(playerId);
+      const player = await db.getPlayerById(playerId);
       
       if (!player) {
         return callback({ 
@@ -193,40 +193,82 @@ module.exports = (io, socket) => {
       }
       
       // Update socket_id and mark as active
-      const updateStmt = db.db.prepare(
-        "UPDATE players SET socket_id = ?, is_active = 1, last_seen = strftime('%s','now') WHERE id = ?"
-      );
-      updateStmt.run(socket.id, playerId);
+      await db.updatePlayerConnection(playerId, socket.id);
       
       socket.join('players');
       socket.playerId = playerId;
       socket.playerName = player.name;
       socket.gameId = player.game_id;
       
-      // Get game phase
+      // Get game phase and current image
       const game = await db.getActiveGame();
       const phase = game ? game.status : 'lobby';
+      let imageRevealed = false;
+      let currentImageId = null;
       
-      logger.game('Player reconnected', { playerId, name: player.name, phase, socketId: socket.id });
-      
-      // Send lobby update to reconnected player so they see current player count
-      if (game) {
-        const players = await db.getLeaderboard(game.id, 100);
-        socket.emit('game:lobby_update', {
-          players: players.map(p => ({ id: p.id, name: p.name, score: p.score })),
-          totalPlayers: players.length
-        });
+      if (game && phase === 'playing') {
+        // Get current image from config (set by admin when selecting/starting image)
+        currentImageId = await db.getConfig('currentImageId');
+        
+        if (currentImageId) {
+          // Check if this image has been revealed already
+          const gameImages = await db.getGameImages(game.id);
+          const gameImage = gameImages.find(gi => gi.image_id === parseInt(currentImageId));
+          imageRevealed = gameImage?.is_played || false;
+        }
       }
       
+      logger.game('Player reconnected', { playerId, name: player.name, phase, imageRevealed, currentImageId, socketId: socket.id });
+      
+      // Send callback FIRST so client updates phase before receiving game events
       callback({ 
         success: true, 
         data: { 
           playerId, 
           name: player.name,
           score: player.score,
-          phase
+          phase,
+          imageRevealed,
+          currentImageId  // ✨ NEW: Send imageId directly in reconnect response
         } 
       });
+      
+      // Then send game state updates (client phase is now set correctly)
+      if (game) {
+        const players = await db.getLeaderboard(game.id, 100);
+        socket.emit('game:lobby_update', {
+          players: players.map(p => ({ id: p.id, name: p.name, score: p.score })),
+          totalPlayers: players.length,
+          gameRunning: game.status === 'playing'
+        });
+        
+        // If game is playing, send current game state
+        if (phase === 'playing') {
+          const gameImages = await db.getGameImages(game.id);
+          const imageStates = await db.getImageStates(game.id);
+          
+          // Find current active image (most recently started)
+          const currentState = imageStates.find(s => s.started_at);
+          if (currentState) {
+            const gameImage = gameImages.find(gi => gi.image_id === currentState.image_id);
+            
+            if (gameImage && !gameImage.is_played) {
+              // Active image - send phase_change (like normal game flow)
+              socket.emit('game:phase_change', {
+                phase: 'playing',
+                imageId: currentState.image_id
+              });
+            } else if (gameImage && gameImage.is_played) {
+              // Last image was revealed - send ONLY revealed state, NO phase_change
+              // (phase_change would trigger active game UI)
+              socket.emit('game:image_revealed', {
+                imageId: currentState.image_id,
+                correctAnswer: gameImage.correct_answer
+              });
+            }
+          }
+        }
+      }
     } catch (error) {
       logger.error('Player reconnect failed', { error: error.message, playerId });
       callback({ success: false, message: 'Reconnect failed' });
@@ -248,10 +290,7 @@ module.exports = (io, socket) => {
       }
       
       // Soft-delete player
-      const stmt = db.db.prepare(
-        'UPDATE players SET is_active = 0 WHERE id = ?'
-      );
-      stmt.run(playerId);
+      await db.updatePlayerConnection(playerId, { is_active: 0 });
       
       logger.info('Player left game', { playerId });
       
@@ -274,16 +313,13 @@ module.exports = (io, socket) => {
   });
 
   // Handle disconnect (keep player active for potential reconnect)
-  socket.on('disconnect', () => {
+  socket.on('disconnect', async () => {
     if (socket.playerId) {
       logger.info('Player disconnected', { playerId: socket.playerId, name: socket.playerName });
       
-      // Update last_seen but keep is_active=1 for 60 seconds grace period
+      // Update last_seen (keep alive mechanism handled by db layer)
       try {
-        const stmt = db.db.prepare(
-          "UPDATE players SET last_seen = strftime('%s','now') WHERE id = ?"
-        );
-        stmt.run(socket.playerId);
+        await db.updatePlayerKeepAlive(socket.playerId);
       } catch (error) {
         logger.error('Failed to update player disconnect', { error: error.message });
       }

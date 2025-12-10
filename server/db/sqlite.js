@@ -461,6 +461,553 @@ class SQLiteDatabase {
     }
   }
 
+  // ========================================
+  // IMAGE MANAGEMENT
+  // ========================================
+
+  async getImageById(imageId) {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM images WHERE id = ?');
+      return stmt.get(imageId) || null;
+    } catch (error) {
+      logger.error('Failed to get image by ID', { imageId, error: error.message });
+      throw error;
+    }
+  }
+
+  async getAllImagesOrdered() {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM images ORDER BY uploaded_at DESC');
+      return stmt.all();
+    } catch (error) {
+      logger.error('Failed to get all images', { error: error.message });
+      throw error;
+    }
+  }
+
+  async updateImageMetadata(imageId, updates) {
+    try {
+      const fields = [];
+      const values = [];
+      
+      if (updates.filename !== undefined) {
+        fields.push('filename = ?');
+        values.push(updates.filename);
+      }
+      if (updates.is_start_image !== undefined) {
+        fields.push('is_start_image = ?');
+        values.push(updates.is_start_image ? 1 : 0);
+      }
+      if (updates.is_end_image !== undefined) {
+        fields.push('is_end_image = ?');
+        values.push(updates.is_end_image ? 1 : 0);
+      }
+      
+      if (fields.length === 0) return;
+      
+      values.push(imageId);
+      const stmt = this.db.prepare(`UPDATE images SET ${fields.join(', ')} WHERE id = ?`);
+      stmt.run(...values);
+    } catch (error) {
+      logger.error('Failed to update image metadata', { imageId, updates, error: error.message });
+      throw error;
+    }
+  }
+
+  async setStartImage(imageId) {
+    try {
+      // Clear previous start image
+      this.db.prepare('UPDATE images SET is_start_image = 0 WHERE is_start_image = 1 AND id != ?').run(imageId);
+      // Set new start image
+      this.db.prepare('UPDATE images SET is_start_image = 1 WHERE id = ?').run(imageId);
+    } catch (error) {
+      logger.error('Failed to set start image', { imageId, error: error.message });
+      throw error;
+    }
+  }
+
+  async setEndImage(imageId) {
+    try {
+      // Clear previous end image
+      this.db.prepare('UPDATE images SET is_end_image = 0 WHERE is_end_image = 1 AND id != ?').run(imageId);
+      // Set new end image
+      this.db.prepare('UPDATE images SET is_end_image = 1 WHERE id = ?').run(imageId);
+    } catch (error) {
+      logger.error('Failed to set end image', { imageId, error: error.message });
+      throw error;
+    }
+  }
+
+  async clearStartImage(imageId) {
+    try {
+      this.db.prepare('UPDATE images SET is_start_image = 0 WHERE id = ?').run(imageId);
+    } catch (error) {
+      logger.error('Failed to clear start image', { imageId, error: error.message });
+      throw error;
+    }
+  }
+
+  async clearEndImage(imageId) {
+    try {
+      this.db.prepare('UPDATE images SET is_end_image = 0 WHERE id = ?').run(imageId);
+    } catch (error) {
+      logger.error('Failed to clear end image', { imageId, error: error.message });
+      throw error;
+    }
+  }
+
+  async clearBothImageFlags(imageId) {
+    try {
+      this.db.prepare('UPDATE images SET is_start_image = 0, is_end_image = 0 WHERE id = ?').run(imageId);
+    } catch (error) {
+      logger.error('Failed to clear both image flags', { imageId, error: error.message });
+      throw error;
+    }
+  }
+
+  // ========================================
+  // GAME IMAGE MANAGEMENT
+  // ========================================
+
+  async getGameImageById(gameImageId) {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT gi.*, i.filename, i.url 
+        FROM game_images gi
+        JOIN images i ON gi.image_id = i.id
+        WHERE gi.id = ?
+      `);
+      return stmt.get(gameImageId) || null;
+    } catch (error) {
+      logger.error('Failed to get game image by ID', { gameImageId, error: error.message });
+      throw error;
+    }
+  }
+
+  async addImageToGame(gameId, imageId, displayOrder, word = null) {
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO game_images (game_id, image_id, display_order, word)
+        VALUES (?, ?, ?, ?)
+      `);
+      const result = stmt.run(gameId, imageId, displayOrder, word);
+      return result.lastInsertRowid;
+    } catch (error) {
+      logger.error('Failed to add image to game', { gameId, imageId, error: error.message });
+      throw error;
+    }
+  }
+
+  async removeImageFromGame(gameImageId) {
+    try {
+      this.db.prepare('DELETE FROM game_images WHERE id = ?').run(gameImageId);
+    } catch (error) {
+      logger.error('Failed to remove image from game', { gameImageId, error: error.message });
+      throw error;
+    }
+  }
+
+  async updateGameImageProperties(gameImageId, updates) {
+    try {
+      const fields = [];
+      const values = [];
+      
+      if (updates.reveal_count !== undefined) {
+        fields.push('reveal_count = ?');
+        values.push(updates.reveal_count);
+      }
+      if (updates.is_played !== undefined) {
+        fields.push('is_played = ?');
+        values.push(updates.is_played ? 1 : 0);
+      }
+      if (updates.correct_answer !== undefined) {
+        fields.push('correct_answer = ?');
+        values.push(updates.correct_answer);
+      }
+      if (updates.display_order !== undefined) {
+        fields.push('display_order = ?');
+        values.push(updates.display_order);
+      }
+      
+      if (fields.length === 0) return;
+      
+      values.push(gameImageId);
+      const stmt = this.db.prepare(`UPDATE game_images SET ${fields.join(', ')} WHERE id = ?`);
+      stmt.run(...values);
+    } catch (error) {
+      logger.error('Failed to update game image', { gameImageId, updates, error: error.message });
+      throw error;
+    }
+  }
+
+  async updateGameImageOrder(gameImageId, displayOrder) {
+    try {
+      this.db.prepare('UPDATE game_images SET display_order = ? WHERE id = ?').run(displayOrder, gameImageId);
+    } catch (error) {
+      logger.error('Failed to update game image order', { gameImageId, displayOrder, error: error.message });
+      throw error;
+    }
+  }
+
+  async resetGameImagesPlayed(gameId) {
+    try {
+      this.db.prepare('UPDATE game_images SET is_played = 0 WHERE game_id = ?').run(gameId);
+    } catch (error) {
+      logger.error('Failed to reset game images played', { gameId, error: error.message });
+      throw error;
+    }
+  }
+
+  // ========================================
+  // PLAYER MANAGEMENT
+  // ========================================
+
+  async getPlayerById(playerId) {
+    try {
+      const stmt = this.db.prepare('SELECT * FROM players WHERE id = ?');
+      return stmt.get(playerId) || null;
+    } catch (error) {
+      logger.error('Failed to get player by ID', { playerId, error: error.message });
+      throw error;
+    }
+  }
+
+  async getExistingPlayer(gameId, name) {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM players 
+        WHERE game_id = ? AND LOWER(name) = LOWER(?) AND is_active = 1
+      `);
+      return stmt.get(gameId, name) || null;
+    } catch (error) {
+      logger.error('Failed to get existing player', { gameId, name, error: error.message });
+      throw error;
+    }
+  }
+
+  async updatePlayerConnection(playerId, socketId) {
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE players 
+        SET socket_id = ?, last_seen = CURRENT_TIMESTAMP, is_active = 1
+        WHERE id = ?
+      `);
+      stmt.run(socketId, playerId);
+    } catch (error) {
+      logger.error('Failed to update player connection', { playerId, socketId, error: error.message });
+      throw error;
+    }
+  }
+
+  async updatePlayerName(playerId, name) {
+    try {
+      const stmt = this.db.prepare('UPDATE players SET name = ? WHERE id = ?');
+      stmt.run(name, playerId);
+    } catch (error) {
+      logger.error('Failed to update player name', { playerId, name, error: error.message });
+      throw error;
+    }
+  }
+
+  async updatePlayerScore(playerId, scoreIncrement) {
+    try {
+      const stmt = this.db.prepare('UPDATE players SET score = score + ? WHERE id = ?');
+      stmt.run(scoreIncrement, playerId);
+    } catch (error) {
+      logger.error('Failed to update player score', { playerId, scoreIncrement, error: error.message });
+      throw error;
+    }
+  }
+
+  // ========================================
+  // ANSWER MANAGEMENT
+  // ========================================
+
+  async saveAnswer(playerId, imageId, answer, isCorrect, points, timeMs) {
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO answers (player_id, image_id, answer, is_correct, points_earned, locked_at)
+        VALUES (?, ?, ?, ?, ?, strftime('%s', 'now'))
+      `);
+      const result = stmt.run(playerId, imageId, answer, isCorrect ? 1 : 0, points);
+      return result.lastInsertRowid;
+    } catch (error) {
+      logger.error('Failed to save answer', { playerId, imageId, error: error.message });
+      throw error;
+    }
+  }
+
+  async updatePlayerAnswer(playerId, imageId, newAnswer, newTimestamp) {
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE answers 
+        SET answer = ?, locked_at = ?
+        WHERE player_id = ? AND image_id = ?
+      `);
+      stmt.run(newAnswer, Math.floor(newTimestamp / 1000), playerId, imageId);
+      logger.info('Answer updated', { playerId, imageId, newAnswer });
+    } catch (error) {
+      logger.error('Failed to update answer', { playerId, imageId, error: error.message });
+      throw error;
+    }
+  }
+
+  async getAnswersForImage(imageId) {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT a.*, p.name as player_name
+        FROM answers a
+        JOIN players p ON a.player_id = p.id
+        WHERE a.image_id = ?
+        ORDER BY a.locked_at ASC
+      `);
+      return stmt.all(imageId);
+    } catch (error) {
+      logger.error('Failed to get answers for image', { imageId, error: error.message });
+      throw error;
+    }
+  }
+
+  async updateAnswerCorrectness(answerId, isCorrect, points) {
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE answers 
+        SET is_correct = ?, points_earned = ?
+        WHERE id = ?
+      `);
+      stmt.run(isCorrect ? 1 : 0, points, answerId);
+    } catch (error) {
+      logger.error('Failed to update answer', { answerId, error: error.message });
+      throw error;
+    }
+  }
+
+  async hasPlayerAnsweredImage(playerId, imageId) {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT COUNT(*) as count FROM answers 
+        WHERE player_id = ? AND image_id = ?
+      `);
+      const row = stmt.get(playerId, imageId);
+      return row.count > 0;
+    } catch (error) {
+      logger.error('Failed to check if player answered', { playerId, imageId, error: error.message });
+      return false;
+    }
+  }
+
+  async getCorrectAnswerCount(imageId) {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT COUNT(*) as count FROM answers 
+        WHERE image_id = ? AND is_correct = 1
+      `);
+      const row = stmt.get(imageId);
+      return row.count || 0;
+    } catch (error) {
+      logger.error('Failed to get correct answer count', { imageId, error: error.message });
+      return 0;
+    }
+  }
+
+  // ========================================
+  // IMAGE STATE MANAGEMENT
+  // ========================================
+
+  async getImageStates(gameId) {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM image_states 
+        WHERE game_id = ?
+        ORDER BY started_at DESC
+      `);
+      return stmt.all(gameId);
+    } catch (error) {
+      logger.error('Failed to get image states', { gameId, error: error.message });
+      throw error;
+    }
+  }
+
+  async getImageState(gameId, imageId) {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM image_states 
+        WHERE game_id = ? AND image_id = ?
+      `);
+      return stmt.get(gameId, imageId) || null;
+    } catch (error) {
+      logger.error('Failed to get image state', { gameId, imageId, error: error.message });
+      throw error;
+    }
+  }
+
+  async updateImageState(gameId, imageId, revealCount) {
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO image_states (game_id, image_id, reveal_count)
+        VALUES (?, ?, ?)
+        ON CONFLICT(game_id, image_id) 
+        DO UPDATE SET reveal_count = ?
+      `);
+      stmt.run(gameId, imageId, revealCount, revealCount);
+    } catch (error) {
+      logger.error('Failed to update image state', { gameId, imageId, revealCount, error: error.message });
+      throw error;
+    }
+  }
+
+  async getRevealCount(gameId, imageId) {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT reveal_count FROM image_states 
+        WHERE game_id = ? AND image_id = ?
+      `);
+      const row = stmt.get(gameId, imageId);
+      return row ? row.reveal_count : 0;
+    } catch (error) {
+      logger.error('Failed to get reveal count', { gameId, imageId, error: error.message });
+      return 0;
+    }
+  }
+
+  // ========================================
+  // STATISTICS & QUERIES
+  // ========================================
+
+  async getGameStats(gameId) {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT 
+          (SELECT COUNT(*) FROM players WHERE game_id = ?) as total_players,
+          (SELECT COUNT(*) FROM players WHERE game_id = ? AND is_active = 1) as active_players,
+          (SELECT COUNT(*) FROM answers a JOIN players p ON a.player_id = p.id WHERE p.game_id = ?) as total_answers,
+          (SELECT COUNT(*) FROM answers a JOIN players p ON a.player_id = p.id WHERE p.game_id = ? AND a.is_correct = 1) as correct_answers
+      `);
+      return stmt.get(gameId, gameId, gameId, gameId);
+    } catch (error) {
+      logger.error('Failed to get game stats', { gameId, error: error.message });
+      throw error;
+    }
+  }
+
+  async getGameImagesByWord(gameId, word) {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT gi.*, i.filename, i.url
+        FROM game_images gi
+        JOIN images i ON gi.image_id = i.id
+        WHERE gi.game_id = ? AND gi.word = ?
+      `);
+      return stmt.all(gameId, word);
+    } catch (error) {
+      logger.error('Failed to get game images by word', { gameId, word, error: error.message });
+      throw error;
+    }
+  }
+
+  // ========================================
+  // GAME MANAGEMENT & RESET
+  // ========================================
+
+  async resetGameToLobby(gameId) {
+    try {
+      this.db.prepare('UPDATE games SET status = ?, started_at = NULL, ended_at = NULL WHERE id = ?')
+        .run('lobby', gameId);
+    } catch (error) {
+      logger.error('Failed to reset game to lobby', { gameId, error: error.message });
+      throw error;
+    }
+  }
+
+  async resetPlayerScores(gameId) {
+    try {
+      this.db.prepare('UPDATE players SET score = 0 WHERE game_id = ?').run(gameId);
+    } catch (error) {
+      logger.error('Failed to reset player scores', { gameId, error: error.message });
+      throw error;
+    }
+  }
+
+  async deletePlayers(gameId) {
+    try {
+      this.db.prepare('DELETE FROM players WHERE game_id = ?').run(gameId);
+    } catch (error) {
+      logger.error('Failed to delete players', { gameId, error: error.message });
+      throw error;
+    }
+  }
+
+  async deleteAnswers(gameId) {
+    try {
+      this.db.prepare(`
+        DELETE FROM answers 
+        WHERE player_id IN (SELECT id FROM players WHERE game_id = ?)
+      `).run(gameId);
+    } catch (error) {
+      logger.error('Failed to delete answers', { gameId, error: error.message });
+      throw error;
+    }
+  }
+
+  async deleteImageStates(gameId) {
+    try {
+      this.db.prepare('DELETE FROM image_states WHERE game_id = ?').run(gameId);
+    } catch (error) {
+      logger.error('Failed to delete image states', { gameId, error: error.message });
+      throw error;
+    }
+  }
+
+  async deletePlayedGameImages(gameId) {
+    try {
+      this.db.prepare('DELETE FROM game_images WHERE game_id = ? AND is_played = 1').run(gameId);
+    } catch (error) {
+      logger.error('Failed to delete played game images', { gameId, error: error.message });
+      throw error;
+    }
+  }
+
+  async clearAllImageFlags() {
+    try {
+      this.db.prepare('UPDATE images SET is_start_image = 0, is_end_image = 0').run();
+    } catch (error) {
+      logger.error('Failed to clear all image flags', { error: error.message });
+      throw error;
+    }
+  }
+
+  async fullDatabaseReset() {
+    try {
+      // Delete all data in correct order (foreign keys)
+      this.db.prepare('DELETE FROM answers').run();
+      this.db.prepare('DELETE FROM image_states').run();
+      this.db.prepare('DELETE FROM players').run();
+      this.db.prepare('DELETE FROM game_images').run();
+      this.db.prepare('DELETE FROM games').run();
+      this.db.prepare('DELETE FROM images').run();
+      this.db.prepare('DELETE FROM config').run();
+      
+      // Reset auto-increment counters (SQLite-specific)
+      this.db.prepare("DELETE FROM sqlite_sequence WHERE name IN ('games', 'images', 'players', 'answers', 'game_images', 'image_states')").run();
+      
+      // Reinitialize with default game
+      this.db.prepare(`
+        INSERT INTO config (key, value) 
+        VALUES 
+          ('adminProtection', '{"enabled":false,"expiresAt":null}'),
+          ('darkMode', 'false'),
+          ('qrEnabled', 'false')
+      `).run();
+      
+      this.db.prepare("INSERT INTO games (id, status) VALUES (1, 'lobby')").run();
+      
+      logger.info('Full database reset completed');
+    } catch (error) {
+      logger.error('Failed to perform full database reset', { error: error.message });
+      throw error;
+    }
+  }
+
   async close() {
     if (this.db) {
       this.db.close();

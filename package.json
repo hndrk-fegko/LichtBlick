@@ -3,7 +3,11 @@
   "version": "3.0.0",
   "description": "LichtBlick - Multiplayer Game with Playwright E2E Tests",
   "scripts": {
+    "postinstall": "cd server && npm install",
+    "start": "cd server && npm start",
     "setup": "node scripts/setup-plesk.js",
+    "mysql:test1": "node scripts/diagnose-mysql.js",
+    "mysql:test2": "node scripts/test-mysql-connection.js",
     "get-token": "node scripts/get-admin-token.js",
     "test:e2e": "playwright test --config=tests/playwright.config.js",
     "test:e2e:headed": "playwright test --config=tests/playwright.config.js --headed",
@@ -22,6 +26,11 @@
   ],
   "author": "FeG Nahude",
   "license": "MIT",
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "mysql2": "^3.11.0",
+    "socket.io-client": "^4.8.1"
+  },
   "devDependencies": {
     "@playwright/test": "^1.40.0",
     "better-sqlite3": "^12.5.0"

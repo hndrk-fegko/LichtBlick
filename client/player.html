@@ -19,7 +19,7 @@
   <div id="login-screen" class="screen active">
     <div class="container">
       <h1>🔦 LichtBlick</h1>
-      <p>Gib deinen Namen ein um mitzuspielen:</p>
+      <p id="login-description">Gib deinen Namen ein um mitzuspielen:</p>
       
       <form id="login-form">
         <input 
@@ -31,7 +31,7 @@
           required
           autocomplete="off"
         >
-        <button type="submit" class="btn btn-primary">Beitreten</button>
+        <button id="login-submit-btn" type="submit" class="btn btn-primary">Beitreten</button>
       </form>
       
       <div id="login-error" class="error-message hidden"></div>
@@ -43,10 +43,17 @@
   <div id="lobby-screen" class="screen">
     <div class="container">
       <div class="screen-header">
-        <h1>🎯 Warte auf Spielstart...</h1>
+        <h1 id="lobby-title">🎯 Warte auf Spielstart...</h1>
         <button id="leave-game-lobby" class="btn btn-danger btn-small">Spiel verlassen</button>
       </div>
       <p id="player-info">Hallo <strong id="player-name-display"></strong>!</p>
+      
+      <!-- Late Join Warning -->
+      <div id="late-join-warning" class="late-join-warning hidden">
+        <p><strong>⚠️ Spiel läuft bereits</strong></p>
+        <p>Du kannst noch beitreten, aber für bereits gespielte Bilder gibt es keine Punkte mehr.</p>
+        <button id="late-join-btn" class="btn btn-primary">Jetzt beitreten</button>
+      </div>
       
       <div class="lobby-info">
         <div class="stat-box">
@@ -55,7 +62,7 @@
         </div>
       </div>
       
-      <div class="loading-spinner">
+      <div id="lobby-waiting" class="loading-spinner">
         <div class="spinner"></div>
         <p>Gleich geht's los!</p>
       </div>
@@ -105,7 +112,12 @@
         
         <div class="reveal-card points-card">
           <div class="reveal-label">Punkte diese Runde</div>
-          <div class="reveal-value" id="reveal-round-points">0</div>
+          <div class="reveal-value points-earned" id="reveal-round-points">0</div>
+        </div>
+        
+        <div class="reveal-card total-score-card">
+          <div class="reveal-label">Gesamtpunktzahl</div>
+          <div class="reveal-value" id="reveal-total-score">0</div>
         </div>
         
         <div class="reveal-waiting">

@@ -12,31 +12,61 @@
 
 const path = require('path');
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const readline = require('readline');
 
-// Optional: Load .env if available (Plesk uses environment variables directly)
+// Manual .env parser to avoid dotenv issues with quotes
+function parseEnvFile(filePath) {
+  if (!fsSync.existsSync(filePath)) {
+    return {};
+  }
+  
+  const content = fsSync.readFileSync(filePath, 'utf8');
+  const lines = content.split('\n');
+  const env = {};
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    
+    const match = trimmed.match(/^([^=]+)=(.*)$/);
+    if (match) {
+      const key = match[1].trim();
+      let value = match[2].trim();
+      
+      // Remove quotes if present
+      if ((value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      
+      env[key] = value;
+    }
+  }
+  
+  return env;
+}
+
+// Load .env file
 const envPath = path.join(__dirname, '../server/.env');
-console.log(`\n🔍 Debug: Suche nach .env Datei in: ${envPath}`);
-console.log(`🔍 Debug: Absoluter Pfad: ${path.resolve(envPath)}`);
+console.log(`\n🔍 Debug: Lade .env von: ${envPath}`);
 
 try {
-  const envExists = require('fs').existsSync(envPath);
-  console.log(`🔍 Debug: .env Datei existiert: ${envExists ? 'JA' : 'NEIN'}`);
+  const envVars = parseEnvFile(envPath);
   
-  if (envExists) {
-    const envContent = require('fs').readFileSync(envPath, 'utf8');
-    console.log(`🔍 Debug: .env Datei Größe: ${envContent.length} Bytes`);
-    console.log(`🔍 Debug: .env Erste 100 Zeichen: ${envContent.substring(0, 100)}`);
+  // Merge with process.env (prefer existing process.env)
+  for (const [key, value] of Object.entries(envVars)) {
+    if (!process.env[key]) {
+      process.env[key] = value;
+    }
   }
   
-  const result = require('dotenv').config({ path: envPath, debug: true });
-  if (result.error) {
-    console.log(`⚠️  dotenv Fehler: ${result.error.message}`);
-  } else {
-    console.log(`✅ dotenv geladen: ${Object.keys(result.parsed || {}).length} Variablen`);
+  console.log(`✅ .env geladen: ${Object.keys(envVars).length} Variablen`);
+  if (Object.keys(envVars).length > 0) {
+    console.log(`   Gefunden: ${Object.keys(envVars).join(', ')}`);
   }
 } catch (err) {
-  console.log(`⚠️  dotenv nicht verfügbar: ${err.message}`);
+  console.log(`⚠️  .env konnte nicht geladen werden: ${err.message}`);
 }
 
 // Farben für Console Output
@@ -82,6 +112,15 @@ function prompt(question) {
 async function checkEnvironment() {
   log('\n📋 1. Umgebungs-Variablen prüfen...', 'bright');
   
+  // Check command line arguments first
+  const args = process.argv.slice(2);
+  for (const arg of args) {
+    const [key, value] = arg.split('=');
+    if (key && value) {
+      process.env[key] = value;
+    }
+  }
+  
   // Check if variables are set
   let DB_HOST = process.env.DB_HOST;
   let DB_NAME = process.env.DB_NAME;
@@ -103,31 +142,14 @@ async function checkEnvironment() {
     log(`  ${status} ${key}: ${value}`, value !== 'nicht gesetzt' ? 'green' : 'red');
   }
   
-  // Prompt for missing values
+  // Exit if missing (non-interactive environment)
   if (!DB_HOST || !DB_NAME || !DB_USER || !DB_PASSWORD) {
-    log('\n⚠️  Einige Variablen fehlen. Bitte eingeben:', 'yellow');
-    
-    if (!DB_HOST) {
-      DB_HOST = await prompt('  DB_HOST (z.B. localhost): ');
-      process.env.DB_HOST = DB_HOST;
-    }
-    
-    if (!DB_NAME) {
-      DB_NAME = await prompt('  DB_NAME (z.B. lichtblick): ');
-      process.env.DB_NAME = DB_NAME;
-    }
-    
-    if (!DB_USER) {
-      DB_USER = await prompt('  DB_USER (z.B. lichtblick): ');
-      process.env.DB_USER = DB_USER;
-    }
-    
-    if (!DB_PASSWORD) {
-      DB_PASSWORD = await prompt('  DB_PASSWORD: ');
-      process.env.DB_PASSWORD = DB_PASSWORD;
-    }
-    
-    log('\n✅ Alle Variablen erfasst!', 'green');
+    log('\n❌ FEHLER: MySQL-Konfiguration fehlt!', 'red');
+    log('\n💡 Bitte als Parameter übergeben:', 'yellow');
+    log('  node scripts/setup-plesk.js DB_HOST=localhost DB_NAME=lichtblick DB_USER=lichtblick DB_PASSWORD=xxx', 'cyan');
+    log('\nODER .env Datei korrekt befüllen:', 'yellow');
+    log(`  Aktuelle .env: ${envPath}`, 'cyan');
+    process.exit(1);
   }
 }
 
@@ -171,7 +193,7 @@ async function createDatabaseSchema() {
   
   try {
     const mysql = require('mysql2/promise');
-    const schemaPath = path.join(__dirname, '../server/db/schema.sql');
+    const schemaPath = path.join(__dirname, '../server/db/schema.mysql.sql');
     const schemaSql = await fs.readFile(schemaPath, 'utf-8');
     
     const connection = await mysql.createConnection({
@@ -183,22 +205,15 @@ async function createDatabaseSchema() {
       multipleStatements: true
     });
     
-    // SQL-Statements einzeln ausführen (sicherer als multipleStatements)
-    const statements = schemaSql
-      .split(';')
-      .map(s => s.trim())
-      .filter(s => s.length > 0 && !s.startsWith('--'));
+    // Entferne Kommentare und führe SQL aus
+    const cleanSql = schemaSql
+      .split('\n')
+      .filter(line => !line.trim().startsWith('--'))
+      .join('\n')
+      .trim();
     
-    for (const statement of statements) {
-      try {
-        await connection.query(statement);
-      } catch (err) {
-        if (!err.message.includes('already exists')) {
-          throw err;
-        }
-        // Tabelle existiert bereits - OK
-      }
-    }
+    // Führe gesamtes SQL aus (multipleStatements: true)
+    await connection.query(cleanSql);
     
     log('  ✅ Schema erfolgreich erstellt!', 'green');
     
@@ -237,7 +252,7 @@ async function generateAdminToken() {
     
     // Prüfe ob Token bereits existiert
     const [existing] = await connection.query(
-      'SELECT value FROM config WHERE key = ?',
+      'SELECT value FROM config WHERE `key` = ?',
       ['adminToken']
     );
     
@@ -249,7 +264,7 @@ async function generateAdminToken() {
       // Neuen Token generieren
       token = crypto.randomBytes(24).toString('base64url');
       await connection.query(
-        'INSERT INTO config (key, value) VALUES (?, ?)',
+        'INSERT INTO config (`key`, value) VALUES (?, ?)',
         ['adminToken', token]
       );
       log('  ✅ Neuer Admin-Token generiert!', 'green');

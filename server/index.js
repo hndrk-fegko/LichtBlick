@@ -40,6 +40,11 @@ async function initializeAdminToken() {
 
 // Main async startup function
 async function startServer() {
+  // WICHTIG: Warte bis Datenbank vollständig initialisiert ist
+  if (db.initialize && typeof db.initialize === 'function') {
+    await db.initialize();
+  }
+  
   // Wait for database to be ready and sync images
   await syncImagesWithFilesystem(db);
   

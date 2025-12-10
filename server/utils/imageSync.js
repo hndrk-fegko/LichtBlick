@@ -17,21 +17,22 @@ const UPLOADS_DIR = path.join(__dirname, '../../data/uploads');
  * @param {Object} db - Database manager instance
  */
 async function syncImagesWithFilesystem(db) {
-  logger.info('Image sync: Starting validation...');
-  
-  // Ensure uploads directory exists
-  if (!fs.existsSync(UPLOADS_DIR)) {
-    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-    logger.info('Image sync: Created uploads directory');
-    return;
-  }
-  
-  // Get all files in uploads directory
-  const filesOnDisk = fs.readdirSync(UPLOADS_DIR)
-    .filter(f => /\.(jpg|jpeg|png|gif|webp)$/i.test(f));
-  
-  // Get all images from database using abstraction layer
-  const imagesInDb = await db.getAllImages();
+  try {
+    logger.info('Image sync: Starting validation...');
+    
+    // Ensure uploads directory exists
+    if (!fs.existsSync(UPLOADS_DIR)) {
+      fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+      logger.info('Image sync: Created uploads directory');
+      return;
+    }
+    
+    // Get all files in uploads directory
+    const filesOnDisk = fs.readdirSync(UPLOADS_DIR)
+      .filter(f => /\.(jpg|jpeg|png|gif|webp)$/i.test(f));
+    
+    // Get all images from database using abstraction layer
+    const imagesInDb = await db.getAllImages();
   
   let cleaned = 0;
   let imported = 0;
@@ -91,6 +92,13 @@ async function syncImagesWithFilesystem(db) {
     logger.info('Image sync: All images in sync', {
       count: imagesInDb.length
     });
+  }
+  } catch (error) {
+    logger.error('Image sync: Failed to sync images', { 
+      error: error.message,
+      stack: error.stack
+    });
+    // Don't crash the server - continue startup even if sync fails
   }
 }
 
