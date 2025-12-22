@@ -1,6 +1,6 @@
 # 🔦 LichtBlick
 
-> **Interaktives Multiplayer-Ratespiel für kirchliche Veranstaltungen**  
+> **Interaktives Multiplayer-Ratespiel für (kirchliche) Veranstaltungen**  
 > Moderator enthüllt Bilder schrittweise mit Spotlight, Spieler raten via Smartphone
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -21,11 +21,14 @@
 4. **Erwachsene** spielen parallel auf ihren Smartphones und sammeln Punkte
 5. **Beamer** zeigt alles synchron für die gesamte Gruppe
 
+Tipp: die Arbeit der Moderation wird am besten auf zwei Personen verteilt - einer bedient die Technik und einer konzentriert sich voll auf die Teilnehmenden Personen 
+
 ### ✨ Hauptfeatures
 
 - 🎮 **Echtzeit-Synchronisation** - Admin, Beamer und alle Spieler sehen dasselbe
-- 📱 **Mobile-First** - Spieler nutzen ihre eigenen Smartphones (kein Login nötig)
-- 🔒 **Offline-fähig** - Funktioniert im lokalen WLAN ohne Internet
+- 📱 **Mobile-First** - Spieler nutzen ihre eigenen Smartphones 
+- 🔒 **Offline-fähig** - Funktioniert im lokalen WLAN ohne Internet (node.js auf Laptop oder Rechner ausführen,bringt SQLite DB nativ mit. Keine weitere Konfiguration benötigt) 
+- 🌐 **Webhosting** - unterstützt Verbindung zu einer MySQL Datenbank und ist getestet in einem plesk Webhosting mit node.js
 - 🏆 **Live-Leaderboard** - Punktesystem mit Boni und Bestenliste
 - 🎨 **Spotlight-Mechanik** - Canvas-basierte interaktive Bildaufdeckung
 - ⚡ **WebSocket-basiert** - Keine Verzögerung, keine Lags
@@ -73,7 +76,7 @@ npm start
    
 2. **Admin-Zugang öffnen** → Bilder hochladen & Einstellungen anpassen
 
-3. **Beamer öffnen** → `http://localhost:3000/beamer.html` (automatische Sync)
+3. **Beamer öffnen** → `http://localhost:3000/beamer.html` (automatische Sync) 
 
 4. **Spieler beitreten lassen** → QR-Code scannen oder `http://localhost:3000` öffnen
 
@@ -161,7 +164,7 @@ lichtblick/
 
 1. Namen eingeben (2-20 Zeichen)
 2. Wortliste durchsuchen oder Begriff tippen
-3. Antwort absenden → Instant-Feedback (✅/❌ + Punkte)
+3. Antwort absenden → Feedback am Ende der Runde (✅/❌ + Punkte)
 4. Leaderboard & eigene Position sehen
 
 ---
@@ -498,7 +501,8 @@ MIT License - siehe [LICENSE](LICENSE)
 
 ## 👥 Autoren
 
-**FeG Nahude - Diakonat Junge Generation**
+**FeG Koblenz - Diakonat Junge Generation**
+Hendrik Dreis 
 
 Entwickelt für Familiengottesdienste und kirchliche Veranstaltungen.
 
@@ -516,7 +520,7 @@ Entwickelt für Familiengottesdienste und kirchliche Veranstaltungen.
 
 - **Issues:** [GitHub Issues](https://github.com/hndrk-fegko/LichtBlick/issues)
 - **Dokumentation:** [docs/](docs/)
-- **E-Mail:** [Kontakt zur FeG Nahude]
+- **E-Mail:** hendrik.dreis@feg-koblenz.de 
 
 ---
 
