@@ -485,11 +485,10 @@ Beiträge sind willkommen! Bitte beachte:
 
 ### Bekannte Baustellen (siehe Issues)
 
-- [ ] Spotlight Canvas Bug beheben
-- [ ] PIN-Schutz UI implementieren
-- [ ] Drag & Drop Upload fixen
-- [ ] Game Strip Scroll-Buttons (>10 Bilder)
-- [ ] Progress Bar anzeigen
+- [ ] Drag & Drop Upload fixen (Bilder werden verschoben, nicht kopiert)
+- [ ] Plesk install ist nicht sauber (postinstall script wird noch benötigt)
+- [ ] Reload eines Players zu einem ungünstigen Zeitpunkt fällt aus dem aktuellen GameState raus, Logik und LateJoin muss überprüft werden.
+
 
 ---
 
