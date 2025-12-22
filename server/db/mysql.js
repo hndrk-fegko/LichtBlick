@@ -711,12 +711,12 @@ class MySQLDatabase {
     }
   }
 
-  async addImageToGame(gameId, imageId, displayOrder, word = null) {
+  async addImageToGame(gameId, imageId, displayOrder, isPlayed = false, correctAnswer = null) {
     try {
       const [result] = await this.pool.query(`
-        INSERT INTO game_images (game_id, image_id, display_order, word)
-        VALUES (?, ?, ?, ?)
-      `, [gameId, imageId, displayOrder, word]);
+        INSERT INTO game_images (game_id, image_id, display_order, is_played, correct_answer)
+        VALUES (?, ?, ?, ?, ?)
+      `, [gameId, imageId, displayOrder, isPlayed, correctAnswer]);
       return result.insertId;
     } catch (error) {
       logger.error('Failed to add image to game', { gameId, imageId, error: error.message });

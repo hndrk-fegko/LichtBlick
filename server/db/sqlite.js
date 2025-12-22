@@ -584,13 +584,13 @@ class SQLiteDatabase {
     }
   }
 
-  async addImageToGame(gameId, imageId, displayOrder, word = null) {
+  async addImageToGame(gameId, imageId, displayOrder, isPlayed = false, correctAnswer = null) {
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO game_images (game_id, image_id, display_order, word)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO game_images (game_id, image_id, display_order, is_played, correct_answer)
+        VALUES (?, ?, ?, ?, ?)
       `);
-      const result = stmt.run(gameId, imageId, displayOrder, word);
+      const result = stmt.run(gameId, imageId, displayOrder, isPlayed, correctAnswer);
       return result.lastInsertRowid;
     } catch (error) {
       logger.error('Failed to add image to game', { gameId, imageId, error: error.message });
