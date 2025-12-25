@@ -21,6 +21,7 @@ class SocketAdapter {
     });
     
     this.connected = false;
+    this.eventQueue = []; // Queue für Events bei Verbindungsabbruch
     this.setupListeners();
     this.setupGlobalErrorHandlers();
   }
@@ -29,6 +30,9 @@ class SocketAdapter {
     this.socket.on('connect', () => {
       console.log('✅ WebSocket connected:', this.socket.id);
       this.connected = true;
+      
+      // Sende gepufferte Events
+      this.flushEventQueue();
       
       // Trigger custom event
       window.dispatchEvent(new CustomEvent('socket:connected', { 
@@ -126,6 +130,9 @@ class SocketAdapter {
   emit(event, data, callback) {
     if (!this.connected) {
       console.warn('⚠️ Socket not connected, queuing event:', event);
+      // Event in Queue speichern
+      this.eventQueue.push({ event, data, callback });
+      return;
     }
     
     if (callback) {
@@ -135,6 +142,28 @@ class SocketAdapter {
     } else {
       this.socket.emit(event);
     }
+  }
+
+  /**
+   * Sende alle gepufferten Events nach Reconnect
+   */
+  flushEventQueue() {
+    if (this.eventQueue.length === 0) return;
+    
+    console.log(`📤 Sending ${this.eventQueue.length} queued events...`);
+    
+    const queue = [...this.eventQueue];
+    this.eventQueue = [];
+    
+    queue.forEach(({ event, data, callback }) => {
+      if (callback) {
+        this.socket.emit(event, data, callback);
+      } else if (data) {
+        this.socket.emit(event, data);
+      } else {
+        this.socket.emit(event);
+      }
+    });
   }
 
   /**

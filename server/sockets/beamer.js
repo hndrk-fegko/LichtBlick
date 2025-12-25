@@ -20,9 +20,7 @@ module.exports = (io, socket) => {
     try {
       // Get current game state (including ended games)
       const game = await db.getLatestGame() || { id: 1, status: 'lobby' };
-      const playerCount = db.db.prepare(
-        'SELECT COUNT(*) as count FROM players WHERE game_id = ?'
-      ).get(game.id);
+      const playerCount = await db.getActivePlayerCount(game.id);
       
       // Send initial state
       const initialState = {
@@ -33,20 +31,20 @@ module.exports = (io, socket) => {
             id: game.id, 
             status: game.status 
           },
-          playerCount: playerCount.count
+          playerCount: playerCount
         }
       };
       
       logger.debug('Sending beamer:initial_state', { 
         socketId: socket.id.substring(0, 8),
         phase: game.status,
-        playerCount: playerCount.count
+        playerCount: playerCount
       });
       
       socket.emit('beamer:initial_state', initialState);
       
-      // Send lobby start image if in lobby phase
-      if (game.status === 'lobby') {
+      // Send start image if in lobby or ended phase
+      if (game.status === 'lobby' || game.status === 'ended') {
         const startImage = await db.getStartImage();
         if (startImage) {
           socket.emit('beamer:image_roles_changed', {
@@ -63,8 +61,7 @@ module.exports = (io, socket) => {
       
       // Send current image if any (for playing phase)
       if (currentImageId && game.status === 'playing') {
-        const stmt = db.db.prepare('SELECT * FROM images WHERE id = ?');
-        const image = stmt.get(currentImageId);
+        const image = await db.getImageById(currentImageId);
         
         if (image) {
           socket.emit('beamer:image_changed', {
@@ -74,19 +71,12 @@ module.exports = (io, socket) => {
           });
           
           // Check if image was already revealed
-          const imageStateStmt = db.db.prepare(`
-            SELECT reveal_count, ended_at FROM image_states
-            WHERE game_id = ? AND image_id = ?
-          `);
-          const imageState = imageStateStmt.get(game.id, currentImageId);
+          const imageState = await db.getImageState(game.id, currentImageId);
           
           // If already revealed, send correct answer too
           if (imageState && imageState.reveal_count > 0 && imageState.ended_at) {
-            const gameImageStmt = db.db.prepare(`
-              SELECT correct_answer FROM game_images
-              WHERE game_id = ? AND image_id = ?
-            `);
-            const gameImage = gameImageStmt.get(game.id, currentImageId);
+            const gameImages = await db.getGameImages(game.id);
+            const gameImage = gameImages.find(gi => gi.image_id === currentImageId);
             
             if (gameImage && gameImage.correct_answer) {
               socket.emit('beamer:reveal_image', {
@@ -101,8 +91,7 @@ module.exports = (io, socket) => {
       // If game ended: send end image and final leaderboard
       if (game.status === 'ended') {
         // Get end image
-        const endImageStmt = db.db.prepare('SELECT * FROM images WHERE is_end_image = 1 LIMIT 1');
-        const endImage = endImageStmt.get();
+        const endImage = await db.getEndImage();
         
         if (endImage) {
           socket.emit('beamer:image_roles_changed', {

@@ -1293,7 +1293,7 @@ function enterCinemaMode() {
   state.cinemaModeWasActive = true;
   
   dom.canvasSection.classList.add('cinema-mode');
-  dom.canvasBackdrop.classList.remove('hidden');
+  dom.cinemaBackdrop.classList.remove('hidden');
   
   // Update footer indicator
   if (dom.cinemaIndicator) {

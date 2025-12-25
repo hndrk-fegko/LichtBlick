@@ -12,31 +12,61 @@
 
 const path = require('path');
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const readline = require('readline');
 
-// Optional: Load .env if available (Plesk uses environment variables directly)
+// Manual .env parser to avoid dotenv issues with quotes
+function parseEnvFile(filePath) {
+  if (!fsSync.existsSync(filePath)) {
+    return {};
+  }
+  
+  const content = fsSync.readFileSync(filePath, 'utf8');
+  const lines = content.split('\n');
+  const env = {};
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    
+    const match = trimmed.match(/^([^=]+)=(.*)$/);
+    if (match) {
+      const key = match[1].trim();
+      let value = match[2].trim();
+      
+      // Remove quotes if present
+      if ((value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      
+      env[key] = value;
+    }
+  }
+  
+  return env;
+}
+
+// Load .env file
 const envPath = path.join(__dirname, '../server/.env');
-console.log(`\n🔍 Debug: Suche nach .env Datei in: ${envPath}`);
-console.log(`🔍 Debug: Absoluter Pfad: ${path.resolve(envPath)}`);
+console.log(`\n🔍 Debug: Lade .env von: ${envPath}`);
 
 try {
-  const envExists = require('fs').existsSync(envPath);
-  console.log(`🔍 Debug: .env Datei existiert: ${envExists ? 'JA' : 'NEIN'}`);
+  const envVars = parseEnvFile(envPath);
   
-  if (envExists) {
-    const envContent = require('fs').readFileSync(envPath, 'utf8');
-    console.log(`🔍 Debug: .env Datei Größe: ${envContent.length} Bytes`);
-    console.log(`🔍 Debug: .env Erste 100 Zeichen: ${envContent.substring(0, 100)}`);
+  // Merge with process.env (prefer existing process.env)
+  for (const [key, value] of Object.entries(envVars)) {
+    if (!process.env[key]) {
+      process.env[key] = value;
+    }
   }
   
-  const result = require('dotenv').config({ path: envPath, debug: true });
-  if (result.error) {
-    console.log(`⚠️  dotenv Fehler: ${result.error.message}`);
-  } else {
-    console.log(`✅ dotenv geladen: ${Object.keys(result.parsed || {}).length} Variablen`);
+  console.log(`✅ .env geladen: ${Object.keys(envVars).length} Variablen`);
+  if (Object.keys(envVars).length > 0) {
+    console.log(`   Gefunden: ${Object.keys(envVars).join(', ')}`);
   }
 } catch (err) {
-  console.log(`⚠️  dotenv nicht verfügbar: ${err.message}`);
+  console.log(`⚠️  .env konnte nicht geladen werden: ${err.message}`);
 }
 
 // Farben für Console Output

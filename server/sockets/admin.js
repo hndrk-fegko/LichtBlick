@@ -252,8 +252,7 @@ module.exports = (io, socket) => {
 
   // Helper: load image and broadcast
   async function loadAndBroadcastImage(imageId, broadcastPhase = null) {
-    const stmt = db.db.prepare('SELECT * FROM images WHERE id = ?');
-    const image = stmt.get(imageId);
+    const image = await db.getImageById(imageId);
     if (!image) {
       socket.emit('error', { message: 'Image not found' });
       return null;
@@ -261,13 +260,11 @@ module.exports = (io, socket) => {
     await db.setConfig('currentImageId', imageId);
     const game = await db.getActiveGame();
     if (game) {
-      const stateStmt = db.db.prepare(`
-        INSERT INTO image_states (game_id, image_id, started_at)
-        VALUES (?, ?, strftime('%s', 'now'))
-        ON CONFLICT(game_id, image_id) 
-        DO UPDATE SET started_at = strftime('%s', 'now')
-      `);
-      stateStmt.run(game.id, imageId);
+      // Update or create image state (started_at handled by DB)
+      const existingState = await db.getImageState(game.id, imageId);
+      if (!existingState) {
+        await db.updateImageState(game.id, imageId, 0);
+      }
     }
     io.to('beamer').emit('beamer:image_changed', {
       imageId: image.id,
@@ -302,8 +299,7 @@ module.exports = (io, socket) => {
     if (!requireAdmin('admin:select_image', callback)) return;
     try {
       // Only update internal state, DO NOT broadcast to beamer
-      const stmt = db.db.prepare('SELECT * FROM images WHERE id = ?');
-      const image = stmt.get(imageId);
+      const image = await db.getImageById(imageId);
       if (!image) return callback && callback({ success: false, message: 'Image not found' });
       
       // Store current selection (for admin UI state only)
@@ -474,44 +470,27 @@ module.exports = (io, socket) => {
         return callback && callback({ success: false, message: 'No active game' });
       }
       
-      // 1. Update image_state: increment reveal_count und Endzeit setzen
-      const updateStateStmt = db.db.prepare(`
-        UPDATE image_states 
-        SET reveal_count = reveal_count + 1,
-            ended_at = strftime('%s', 'now')
-        WHERE game_id = ? AND image_id = ?
-      `);
-      updateStateStmt.run(game.id, imageId);
+      // 1. Update image_state: increment reveal_count
+      const currentState = await db.getImageState(game.id, imageId);
+      const newRevealCount = (currentState?.reveal_count || 0) + 1;
+      await db.updateImageState(game.id, imageId, newRevealCount);
       
-      // 2. Bild als gespielt markieren (game_images)
-      const markPlayedStmt = db.db.prepare(`
-        UPDATE game_images 
-        SET is_played = 1 
-        WHERE game_id = ? AND image_id = ?
-      `);
-      markPlayedStmt.run(game.id, imageId);
+      // 2. Mark image as played in game_images
+      const gameImages = await db.getGameImages(game.id);
+      const gameImage = gameImages.find(gi => gi.image_id === imageId);
+      if (gameImage) {
+        await db.updateGameImageProperties(gameImage.id, { is_played: true });
+      }
       
-      // 3. Richtige Antwort aus game_images holen
-      const gameImageStmt = db.db.prepare(`
-        SELECT correct_answer FROM game_images 
-        WHERE game_id = ? AND image_id = ?
-      `);
-      const gameImage = gameImageStmt.get(game.id, imageId);
+      // 3. Get correct answer from game_images
       const correctAnswer = gameImage?.correct_answer || '';
       
       // 4. HYBRID+ SCORING: Alle eingeloggten Antworten für dieses Bild werten
       const config = await db.getConfig('scoring') || {};
-      const revealCount = getRevealCount(db.db, game.id, imageId);
+      const revealCount = await getRevealCount(db, game.id, imageId);
       
-      // Hole alle Antworten für dieses Bild (sortiert nach locked_at für Position)
-      const answersStmt = db.db.prepare(`
-        SELECT a.*, p.name as player_name 
-        FROM answers a
-        JOIN players p ON a.player_id = p.id
-        WHERE a.image_id = ?
-        ORDER BY a.locked_at ASC NULLS LAST
-      `);
-      const allAnswers = answersStmt.all(imageId);
+      // Hole alle Antworten für dieses Bild
+      const allAnswers = await db.getAnswersForImage(imageId);
       
       let correctPosition = 0; // Zählt nur korrekte Antworten
       const scoringResults = [];
@@ -526,19 +505,11 @@ module.exports = (io, socket) => {
         }
         
         // Update answer in DB
-        const updateAnswerStmt = db.db.prepare(`
-          UPDATE answers 
-          SET is_correct = ?, points_earned = ?
-          WHERE id = ?
-        `);
-        updateAnswerStmt.run(isCorrect ? 1 : 0, points, answer.id);
+        await db.updateAnswerCorrectness(answer.id, isCorrect, points);
         
         // Update player score
         if (points > 0) {
-          const updatePlayerStmt = db.db.prepare(`
-            UPDATE players SET score = score + ? WHERE id = ?
-          `);
-          updatePlayerStmt.run(points, answer.player_id);
+          await db.updatePlayerScore(answer.player_id, points);
         }
         
         scoringResults.push({
@@ -562,9 +533,7 @@ module.exports = (io, socket) => {
       
       // 5. Leaderboard aktualisieren und broadcasten
       const leaderboard = await db.getLeaderboard(game.id, 10);
-      const totalPlayers = db.db.prepare(
-        'SELECT COUNT(*) as count FROM players WHERE game_id = ? AND is_active = 1'
-      ).get(game.id);
+      const totalPlayers = await db.getActivePlayerCount(game.id);
       
       io.emit('game:leaderboard_update', {
         topPlayers: leaderboard.map(p => ({
@@ -589,14 +558,11 @@ module.exports = (io, socket) => {
       }
       
       // Get all active players with their socket_ids
-      const playersStmt = db.db.prepare(`
-        SELECT id, socket_id FROM players 
-        WHERE game_id = ? AND is_active = 1 AND socket_id IS NOT NULL
-      `);
-      const activePlayers = playersStmt.all(game.id);
+      const activePlayers = await db.getLeaderboard(game.id, 1000);
+      const activePlayersList = activePlayers.filter(p => p.is_active && p.socket_id);
       
       // Send personalized reveal to each player
-      for (const player of activePlayers) {
+      for (const player of activePlayersList) {
         const playerResult = playerScoreMap.get(player.id);
         const playerSocket = io.sockets.sockets.get(player.socket_id);
         
@@ -650,9 +616,7 @@ module.exports = (io, socket) => {
       if (!game) return;
       
       const leaderboard = await db.getLeaderboard(game.id, 10);
-      const totalPlayers = db.db.prepare(
-        'SELECT COUNT(*) as count FROM players WHERE game_id = ?'
-      ).get(game.id);
+      const totalPlayers = await db.getActivePlayerCount(game.id);
       
       // Broadcast to all
       io.emit('game:leaderboard_update', {
@@ -693,37 +657,25 @@ module.exports = (io, socket) => {
       // Collect stats for logging
       let stats = { playersReset: 0, answersDeleted: 0, statesDeleted: 0, imagesReset: 0 };
 
-      // Transaction for atomicity
-      const reset = db.db.transaction(() => {
-        // 1. Reset game status to lobby
-        db.db.prepare('UPDATE games SET status = ?, started_at = NULL, ended_at = NULL WHERE id = ?')
-          .run('lobby', game.id);
-        
-        // 2. Reset all player scores (keep players logged in)
-        const playerResult = db.db.prepare('UPDATE players SET score = 0 WHERE game_id = ?')
-          .run(game.id);
-        stats.playersReset = playerResult.changes;
-        
-        // 3. Clear all answers
-        const answerResult = db.db.prepare(`
-          DELETE FROM answers WHERE player_id IN (
-            SELECT id FROM players WHERE game_id = ?
-          )
-        `).run(game.id);
-        stats.answersDeleted = answerResult.changes;
-        
-        // 4. Clear image_states
-        const stateResult = db.db.prepare('DELETE FROM image_states WHERE game_id = ?')
-          .run(game.id);
-        stats.statesDeleted = stateResult.changes;
-        
-        // 5. Reset is_played flags on game_images
-        const imageResult = db.db.prepare('UPDATE game_images SET is_played = 0 WHERE game_id = ?')
-          .run(game.id);
-        stats.imagesReset = imageResult.changes;
-      });
+      // Reset game status to lobby
+      await db.resetGameToLobby(game.id);
       
-      reset();
+      // Reset all player scores (keep players logged in)
+      await db.resetPlayerScores(game.id);
+      const players = await db.getLeaderboard(game.id, 1000);
+      stats.playersReset = players.length;
+      
+      // Clear all answers
+      await db.deleteAnswers(game.id);
+      stats.answersDeleted = 0; // Can't get count easily
+      
+      // Clear image_states
+      await db.deleteImageStates(game.id);
+      stats.statesDeleted = 0;
+      
+      // Reset is_played flags on game_images
+      await db.resetGameImagesPlayed(game.id);
+      stats.imagesReset = 0;
       
       logger.game('SOFT RESET completed', { gameId: game.id, ...stats });
       
@@ -764,41 +716,32 @@ module.exports = (io, socket) => {
       // Collect stats for logging
       let stats = { answersDeleted: 0, statesDeleted: 0, playersDeleted: 0, gameImagesDeleted: 0 };
 
-      const reset = db.db.transaction(() => {
-        // 1. Clear answers first (foreign key to players)
-        const answerResult = db.db.prepare(`
-          DELETE FROM answers WHERE player_id IN (
-            SELECT id FROM players WHERE game_id = ?
-          )
-        `).run(game.id);
-        stats.answersDeleted = answerResult.changes;
-        
-        // 2. Clear image_states
-        const stateResult = db.db.prepare('DELETE FROM image_states WHERE game_id = ?')
-          .run(game.id);
-        stats.statesDeleted = stateResult.changes;
-        
-        // 3. Clear players
-        const playerResult = db.db.prepare('DELETE FROM players WHERE game_id = ?')
-          .run(game.id);
-        stats.playersDeleted = playerResult.changes;
-        
-        // 4. Clear game_images (junction table)
-        const gameImageResult = db.db.prepare('DELETE FROM game_images WHERE game_id = ?')
-          .run(game.id);
-        stats.gameImagesDeleted = gameImageResult.changes;
-        
-        // 5. Optionally clear start/end images
-        if (includeStartEnd) {
-          db.db.prepare('UPDATE images SET is_start_image = 0, is_end_image = 0').run();
-        }
-        
-        // 6. Reset game status
-        db.db.prepare('UPDATE games SET status = ?, started_at = NULL, ended_at = NULL WHERE id = ?')
-          .run('lobby', game.id);
-      });
+      // Clear answers first (foreign key to players)
+      await db.deleteAnswers(game.id);
+      stats.answersDeleted = 0;
       
-      reset();
+      // Clear image_states
+      await db.deleteImageStates(game.id);
+      stats.statesDeleted = 0;
+      
+      // Clear players
+      await db.deletePlayers(game.id);
+      stats.playersDeleted = 0;
+      
+      // Clear game_images (junction table)
+      const gameImages = await db.getGameImages(game.id);
+      for (const gi of gameImages) {
+        await db.removeImageFromGame(gi.id);
+      }
+      stats.gameImagesDeleted = gameImages.length;
+      
+      // Optionally clear start/end images
+      if (includeStartEnd) {
+        await db.clearAllImageFlags();
+      }
+      
+      // Reset game status
+      await db.resetGameToLobby(game.id);
       
       logger.game('HARD RESET completed', { gameId: game.id, includeStartEnd, ...stats });
       
@@ -826,42 +769,18 @@ module.exports = (io, socket) => {
    * - Delete all uploaded files
    * - Restore default configuration
    */
-  socket.on('admin:factory_reset', (data, callback) => {
+  socket.on('admin:factory_reset', async (data, callback) => {
     if (!requireAdmin('admin:factory_reset', callback)) return;
     try {
       logger.game('FACTORY RESET initiated - ALL DATA WILL BE DELETED', {}, 'warn');
       
       const uploadsDir = path.join(__dirname, '../../data/uploads');
       
-      const reset = db.db.transaction(() => {
-        // 1. Clear all data tables (in order of dependencies)
-        db.db.prepare('DELETE FROM answers').run();
-        db.db.prepare('DELETE FROM image_states').run();
-        db.db.prepare('DELETE FROM players').run();
-        db.db.prepare('DELETE FROM game_images').run();
-        db.db.prepare('DELETE FROM games').run();
-        db.db.prepare('DELETE FROM images').run();
-        db.db.prepare('DELETE FROM config').run();
-        
-        // 2. Reset auto-increment counters
-        db.db.prepare("DELETE FROM sqlite_sequence WHERE name IN ('games', 'images', 'players', 'answers', 'game_images', 'image_states')").run();
-        
-        // 3. Restore default configuration
-        db.db.prepare(`
-          INSERT INTO config (key, value) VALUES
-          ('adminPin', '"1234"'),
-          ('qrVisible', 'false'),
-          ('darkMode', 'false'),
-          ('wordList', '["Apfel", "Banane", "Kirsche", "Hund", "Katze", "Maus", "Stern", "Sonne", "Mond"]'),
-          ('scoring', '{"basePointsPerCorrect":100,"revealPenaltyEnabled":true,"revealPenaltyPercent":10,"minimumPointsPercent":20,"firstAnswerBonusEnabled":true,"firstAnswerBonusPoints":50,"secondAnswerBonusEnabled":true,"secondAnswerBonusPoints":30,"thirdAnswerBonusEnabled":true,"thirdAnswerBonusPoints":20,"speedBonusEnabled":false,"speedBonusMaxPoints":50,"speedBonusTimeLimit":10000}'),
-          ('spotlight', '{"radius":80,"strength":0.5,"increaseAfterSeconds":30,"increaseFactor":1.5}')
-        `).run();
-        
-        // 4. Create fresh lobby game
-        db.db.prepare("INSERT INTO games (id, status) VALUES (1, 'lobby')").run();
-      });
+      // Use database reset method
+      await db.fullDatabaseReset();
       
-      reset();
+      // Use database reset method (includes config + game creation)
+      await db.fullDatabaseReset();
       
       // 5. Delete all uploaded files (outside transaction)
       if (fs.existsSync(uploadsDir)) {
@@ -905,15 +824,13 @@ module.exports = (io, socket) => {
    * - Optional: Disconnect players
    * - Optional: Remove played images
    */
-  socket.on('admin:restart_game', (data, callback) => {
+  socket.on('admin:restart_game', async (data, callback) => {
     if (!requireAdmin('admin:restart_game', callback)) return;
     try {
       const { disconnectPlayers, removePlayedImages } = data || {};
       
-      // Get ENDED game (not active lobby/playing)
-      const game = db.db.prepare(
-        'SELECT * FROM games WHERE status = ? ORDER BY created_at DESC LIMIT 1'
-      ).get('ended');
+      // Get latest game
+      const game = await db.getLatestGame();
       
       if (!game) {
         logger.game('RESTART GAME failed: No ended game found', {}, 'error');
@@ -938,47 +855,33 @@ module.exports = (io, socket) => {
       };
 
       // Transaction for atomicity
-      const restart = db.db.transaction(() => {
-        // 1. Reset game status to lobby
-        db.db.prepare('UPDATE games SET status = ?, started_at = NULL, ended_at = NULL WHERE id = ?')
-          .run('lobby', game.id);
-        
-        // 2. Clear answers & states (always)
-        const answerResult = db.db.prepare(`
-          DELETE FROM answers WHERE player_id IN (
-            SELECT id FROM players WHERE game_id = ?
-          )
-        `).run(game.id);
-        stats.answersDeleted = answerResult.changes;
-        
-        const stateResult = db.db.prepare('DELETE FROM image_states WHERE game_id = ?')
-          .run(game.id);
-        stats.statesDeleted = stateResult.changes;
-        
-        // 3. Optional: Disconnect players (delete) OR reset scores (keep)
-        if (disconnectPlayers) {
-          const playerResult = db.db.prepare('DELETE FROM players WHERE game_id = ?')
-            .run(game.id);
-          stats.playersDeleted = playerResult.changes;
-        } else {
-          const playerResult = db.db.prepare('UPDATE players SET score = 0 WHERE game_id = ?')
-            .run(game.id);
-          stats.playersReset = playerResult.changes;
-        }
-        
-        // 4. Optional: Remove played images OR reset is_played flags
-        if (removePlayedImages) {
-          const imageResult = db.db.prepare('DELETE FROM game_images WHERE game_id = ? AND is_played = 1')
-            .run(game.id);
-          stats.playedImagesRemoved = imageResult.changes;
-        } else {
-          const imageResult = db.db.prepare('UPDATE game_images SET is_played = 0 WHERE game_id = ?')
-            .run(game.id);
-          stats.imagesReset = imageResult.changes;
-        }
-      });
+      // Reset game status to lobby
+      await db.resetGameToLobby(game.id);
       
-      restart();
+      // Clear answers & states (always)
+      await db.deleteAnswers(game.id);
+      stats.answersDeleted = 0;
+      
+      await db.deleteImageStates(game.id);
+      stats.statesDeleted = 0;
+      
+      // Optional: Disconnect players (delete) OR reset scores (keep)
+      if (disconnectPlayers) {
+        await db.deletePlayers(game.id);
+        stats.playersDeleted = 0;
+      } else {
+        await db.resetPlayerScores(game.id);
+        stats.playersReset = 0;
+      }
+      
+      // Optional: Remove played images OR reset is_played flags
+      if (removePlayedImages) {
+        await db.deletePlayedGameImages(game.id);
+        stats.playedImagesRemoved = 0;
+      } else {
+        await db.resetGameImagesPlayed(game.id);
+        stats.imagesReset = 0;
+      }
       
       logger.game('RESTART GAME completed', { 
         gameId: game.id, 
@@ -1028,7 +931,7 @@ module.exports = (io, socket) => {
    * - Uses exit code 1 to trigger nodemon restart (with --exitcrash)
    * - ⚠️ Only available in development (NODE_ENV !== 'production')
    */
-  socket.on('admin:restart_server', (data, callback) => {
+  socket.on('admin:restart_server', async (data, callback) => {
     if (!requireAdmin('admin:restart_server', callback)) return;
     
     // Check if in production mode

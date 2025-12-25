@@ -176,4 +176,325 @@
  * @returns {Promise<void>}
  */
 
+// ========================================
+// IMAGE MANAGEMENT
+// ========================================
+
+/**
+ * Get image by ID
+ * @async
+ * @param {number} imageId - Image ID
+ * @returns {Promise<Object|null>} - Image object or null
+ */
+
+/**
+ * Get all images (ordered by upload date)
+ * @async
+ * @returns {Promise<Array>} - Array of image objects
+ */
+
+/**
+ * Update image metadata (filename/flags)
+ * @async
+ * @param {number} imageId - Image ID
+ * @param {Object} updates - Fields to update {filename, is_start_image, is_end_image}
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Set start image (clears previous start image)
+ * @async
+ * @param {number} imageId - Image ID
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Set end image (clears previous end image)
+ * @async
+ * @param {number} imageId - Image ID
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Clear start image flag
+ * @async
+ * @param {number} imageId - Image ID
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Clear end image flag
+ * @async
+ * @param {number} imageId - Image ID
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Clear both start and end image flags
+ * @async
+ * @param {number} imageId - Image ID
+ * @returns {Promise<void>}
+ */
+
+// ========================================
+// GAME IMAGE MANAGEMENT
+// ========================================
+
+/**
+ * Get game image by ID
+ * @async
+ * @param {number} gameImageId - game_images.id
+ * @returns {Promise<Object|null>} - Game image object or null
+ */
+
+/**
+ * Add image to game
+ * @async
+ * @param {number} gameId - Game ID
+ * @param {number} imageId - Image ID
+ * @param {number} displayOrder - Display order
+ * @param {string|null} word - Associated word
+ * @returns {Promise<number>} - New game_images.id
+ */
+
+/**
+ * Remove image from game
+ * @async
+ * @param {number} gameImageId - game_images.id
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Update game image properties
+ * @async
+ * @param {number} gameImageId - game_images.id
+ * @param {Object} updates - Fields to update {reveal_count, is_played, word, display_order}
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Update display order for a game image
+ * @async
+ * @param {number} gameImageId - game_images.id
+ * @param {number} displayOrder - New display order
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Reset all is_played flags for a game
+ * @async
+ * @param {number} gameId - Game ID
+ * @returns {Promise<void>}
+ */
+
+// ========================================
+// PLAYER MANAGEMENT
+// ========================================
+
+/**
+ * Get player by ID
+ * @async
+ * @param {number} playerId - Player ID
+ * @returns {Promise<Object|null>} - Player object or null
+ */
+
+/**
+ * Get existing player by name and game
+ * @async
+ * @param {number} gameId - Game ID
+ * @param {string} name - Player name
+ * @returns {Promise<Object|null>} - Player or null
+ */
+
+/**
+ * Update player (for reconnection)
+ * @async
+ * @param {number} playerId - Player ID
+ * @param {string} socketId - New socket ID
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Update player name
+ * @async
+ * @param {number} playerId - Player ID
+ * @param {string} name - New name
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Update player score
+ * @async
+ * @param {number} playerId - Player ID
+ * @param {number} scoreIncrement - Score to add
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Get active player count
+ * @async
+ * @param {number} gameId - Game ID
+ * @returns {Promise<number>} - Count
+ */
+
+// ========================================
+// ANSWER MANAGEMENT
+// ========================================
+
+/**
+ * Save player answer
+ * @async
+ * @param {number} playerId - Player ID
+ * @param {number} imageId - Image ID
+ * @param {string} answer - Answer text
+ * @param {boolean} isCorrect - Is correct?
+ * @param {number} points - Points earned
+ * @param {number} timeMs - Answer time in ms
+ * @returns {Promise<number>} - New answer ID
+ */
+
+/**
+ * Get all answers for an image
+ * @async
+ * @param {number} imageId - Image ID
+ * @returns {Promise<Array>} - Array of answer objects with player names
+ */
+
+/**
+ * Update answer correctness and points
+ * @async
+ * @param {number} answerId - Answer ID
+ * @param {boolean} isCorrect - New correctness
+ * @param {number} points - New points
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Check if player has answered image
+ * @async
+ * @param {number} playerId - Player ID
+ * @param {number} imageId - Image ID
+ * @returns {Promise<boolean>} - Has answered?
+ */
+
+/**
+ * Get count of correct answers for image
+ * @async
+ * @param {number} imageId - Image ID
+ * @returns {Promise<number>} - Count
+ */
+
+// ========================================
+// IMAGE STATE MANAGEMENT
+// ========================================
+
+/**
+ * Get all image states for a game
+ * @async
+ * @param {number} gameId - Game ID
+ * @returns {Promise<Array>} - Array of image states
+ */
+
+/**
+ * Get image state for game
+ * @async
+ * @param {number} gameId - Game ID
+ * @param {number} imageId - Image ID
+ * @returns {Promise<Object|null>} - Image state or null
+ */
+
+/**
+ * Update image state (reveal count)
+ * @async
+ * @param {number} gameId - Game ID
+ * @param {number} imageId - Image ID
+ * @param {number} revealCount - New reveal count
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Get reveal count for image
+ * @async
+ * @param {number} gameId - Game ID
+ * @param {number} imageId - Image ID
+ * @returns {Promise<number>} - Reveal count
+ */
+
+// ========================================
+// STATISTICS & QUERIES
+// ========================================
+
+/**
+ * Get statistics for a game
+ * @async
+ * @param {number} gameId - Game ID
+ * @returns {Promise<Object>} - Stats object {totalPlayers, activePlayers, totalAnswers, correctAnswers}
+ */
+
+/**
+ * Get assigned word for game image
+ * @async
+ * @param {number} gameId - Game ID
+ * @param {string} word - Word to find
+ * @returns {Promise<Array>} - Array of matching game images
+ */
+
+// ========================================
+// GAME MANAGEMENT & RESET
+// ========================================
+
+/**
+ * Reset game to lobby (keep players, reset scores)
+ * @async
+ * @param {number} gameId - Game ID
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Reset player scores for a game
+ * @async
+ * @param {number} gameId - Game ID
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Delete all players for a game
+ * @async
+ * @param {number} gameId - Game ID
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Delete all answers for a game
+ * @async
+ * @param {number} gameId - Game ID
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Delete all image states for a game
+ * @async
+ * @param {number} gameId - Game ID
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Delete played game images
+ * @async
+ * @param {number} gameId - Game ID
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Clear all start/end image flags
+ * @async
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Full database reset (delete all data, reinitialize)
+ * @async
+ * @returns {Promise<void>}
+ */
+
 module.exports = {};

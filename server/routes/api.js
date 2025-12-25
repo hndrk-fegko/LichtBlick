@@ -343,6 +343,91 @@ router.post('/verify-pin', async (req, res) => {
 });
 
 // ============================================
+// Game Status (Public)
+// ============================================
+
+// GET /api/game/status - Get current game status (public endpoint)
+router.get('/game/status', async (req, res) => {
+  try {
+    const game = await db.getActiveGame();
+    
+    if (!game) {
+      return res.json({
+        success: true,
+        data: {
+          exists: false,
+          status: null
+        }
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        exists: true,
+        status: game.status, // 'lobby', 'playing', 'ended'
+        id: game.id
+      }
+    });
+  } catch (error) {
+    logger.error('Failed to get game status', { error: error.message });
+    res.status(500).json({ success: false, message: 'Failed to get game status' });
+  }
+});
+
+/**
+ * GET /api/game/current-state
+ * Returns current game state for reconnecting players
+ * - Current image ID (if game is playing)
+ * - Whether player already answered
+ * Used for page reloads during active game
+ */
+router.get('/game/current-state', async (req, res) => {
+  try {
+    const game = await db.getActiveGame();
+    
+    if (!game || game.status !== 'playing') {
+      return res.json({
+        success: true,
+        data: {
+          phase: game ? game.status : 'lobby',
+          currentImageId: null
+        }
+      });
+    }
+    
+    // Get current active image
+    const gameImages = await db.getGameImages(game.id);
+    const imageStates = await db.getImageStates(game.id);
+    
+    const currentState = imageStates.find(s => s.started_at);
+    if (!currentState) {
+      return res.json({
+        success: true,
+        data: {
+          phase: 'playing',
+          currentImageId: null
+        }
+      });
+    }
+    
+    const gameImage = gameImages.find(gi => gi.image_id === currentState.image_id);
+    
+    res.json({
+      success: true,
+      data: {
+        phase: 'playing',
+        currentImageId: currentState.image_id,
+        imageRevealed: gameImage?.is_played || false
+      }
+    });
+  } catch (error) {
+    logger.error('Failed to get current game state', { error: error.message });
+    res.status(500).json({ success: false, message: 'Failed to get current game state' });
+  }
+});
+
+// ============================================
 // Game Images Management (Junction Table)
 // ============================================
 
@@ -355,14 +440,7 @@ router.get('/game-images', async (req, res) => {
       return res.json({ success: true, data: [] });
     }
     
-    const stmt = db.db.prepare(`
-      SELECT gi.*, i.filename, i.url 
-      FROM game_images gi
-      JOIN images i ON gi.image_id = i.id
-      WHERE gi.game_id = ?
-      ORDER BY gi.display_order ASC
-    `);
-    const gameImages = stmt.all(game.id);
+    const gameImages = await db.getGameImages(game.id);
     
     res.json({
       success: true,
@@ -392,25 +470,18 @@ router.post('/game-images', requireAdminAuth, async (req, res) => {
     }
     
     // Get next display_order
-    const maxOrderStmt = db.db.prepare(
-      'SELECT COALESCE(MAX(display_order), -1) + 1 as next_order FROM game_images WHERE game_id = ?'
-    );
-    const { next_order } = maxOrderStmt.get(game.id);
+    const gameImages = await db.getGameImages(game.id);
+    const next_order = gameImages.length > 0 ? Math.max(...gameImages.map(gi => gi.display_order)) + 1 : 0;
     
     // Insert game_image
-    const stmt = db.db.prepare(`
-      INSERT INTO game_images (game_id, image_id, correct_answer, display_order)
-      VALUES (?, ?, ?, ?)
-    `);
-    
-    const result = stmt.run(game.id, imageId, correctAnswer || null, next_order);
+    const newId = await db.addImageToGame(game.id, imageId, next_order, correctAnswer || null);
     
     logger.info('Image added to game', { gameId: game.id, imageId, correctAnswer });
     
     res.json({
       success: true,
       data: {
-        id: result.lastInsertRowid,
+        id: newId,
         image_id: imageId,
         correct_answer: correctAnswer || null,
         display_order: next_order,
@@ -433,12 +504,7 @@ router.delete('/game-images/:id', requireAdminAuth, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     
-    const stmt = db.db.prepare('DELETE FROM game_images WHERE id = ?');
-    const result = stmt.run(id);
-    
-    if (result.changes === 0) {
-      return res.status(404).json({ success: false, message: 'Game image not found' });
-    }
+    await db.removeImageFromGame(id);
     
     logger.info('Image removed from game', { id });
     res.json({ success: true, message: 'Bild aus Spiel entfernt' });
@@ -471,13 +537,11 @@ router.patch('/game-images/:id', requireAdminAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'No updates provided' });
     }
     
-    params.push(id);
-    const stmt = db.db.prepare(`UPDATE game_images SET ${updates.join(', ')} WHERE id = ?`);
-    const result = stmt.run(...params);
+    const updateObj = {};
+    if (correctAnswer !== undefined) updateObj.correct_answer = correctAnswer;
+    if (isPlayed !== undefined) updateObj.is_played = isPlayed;
     
-    if (result.changes === 0) {
-      return res.status(404).json({ success: false, message: 'Game image not found' });
-    }
+    await db.updateGameImageProperties(id, updateObj);
     
     logger.info('Game image updated', { id, correctAnswer, isPlayed });
     res.json({ success: true, message: 'Aktualisiert' });
@@ -496,15 +560,10 @@ router.patch('/game-images/reorder', requireAdminAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'order must be an array' });
     }
     
-    const updateStmt = db.db.prepare('UPDATE game_images SET display_order = ? WHERE id = ?');
-    
-    const transaction = db.db.transaction((ids) => {
-      ids.forEach((id, index) => {
-        updateStmt.run(index, id);
-      });
-    });
-    
-    transaction(order);
+    // Update all in sequence
+    for (let index = 0; index < order.length; index++) {
+      await db.updateGameImageOrder(order[index], index);
+    }
     
     logger.info('Game images reordered', { order });
     res.json({ success: true, message: 'Reihenfolge aktualisiert' });
@@ -522,8 +581,7 @@ router.post('/game-images/reset-played', requireAdminAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'No active game' });
     }
     
-    const stmt = db.db.prepare('UPDATE game_images SET is_played = 0 WHERE game_id = ?');
-    stmt.run(game.id);
+    await db.resetGameImagesPlayed(game.id);
     
     logger.info('Game images reset', { gameId: game.id });
     res.json({ success: true, message: 'Alle Bilder zurückgesetzt' });
@@ -562,13 +620,10 @@ router.get('/words/:imageId', async (req, res) => {
     let correctAnswers = [];
     
     if (game) {
-      const stmt = db.db.prepare(`
-        SELECT DISTINCT correct_answer 
-        FROM game_images 
-        WHERE game_id = ? AND correct_answer IS NOT NULL AND correct_answer != ''
-      `);
-      const results = stmt.all(game.id);
-      correctAnswers = results.map(r => r.correct_answer);
+      const gameImages = await db.getGameImages(game.id);
+      correctAnswers = gameImages
+        .map(gi => gi.correct_answer)
+        .filter(word => word && word.trim() !== '');
     }
     
     // 3. Deduplicate: Start with decoy words

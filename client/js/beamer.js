@@ -509,27 +509,85 @@ function handleLeaderboardUpdate(data) {
 }
 
 function updateLeaderboard(players) {
+  // Top 3: Show on podium
+  const podium = document.getElementById('podium');
+  if (players.length >= 3) {
+    podium.classList.remove('hidden');
+    
+    // Platz 1 (Mitte)
+    const place1 = document.getElementById('podium-1').querySelector('.podium-player');
+    place1.innerHTML = `
+      <div class="medal">🥇</div>
+      <div class="name">${players[0].name}</div>
+      <div class="score">${players[0].score}</div>
+    `;
+    
+    // Platz 2 (Links)
+    const place2 = document.getElementById('podium-2').querySelector('.podium-player');
+    place2.innerHTML = `
+      <div class="medal">🥈</div>
+      <div class="name">${players[1].name}</div>
+      <div class="score">${players[1].score}</div>
+    `;
+    
+    // Platz 3 (Rechts)
+    const place3 = document.getElementById('podium-3').querySelector('.podium-player');
+    place3.innerHTML = `
+      <div class="medal">🥉</div>
+      <div class="name">${players[2].name}</div>
+      <div class="score">${players[2].score}</div>
+    `;
+  } else {
+    podium.classList.add('hidden');
+  }
+  
+  // Remaining players: Show in list (4-10)
   const container = document.getElementById('leaderboard');
   container.innerHTML = '';
   
-  players.slice(0, 10).forEach((player, index) => {
-    const item = document.createElement('div');
-    item.className = 'leaderboard-item';
-    
-    const medal = index < 3 ? ['🥇', '🥈', '🥉'][index] : `${index + 1}.`;
-    
-    item.innerHTML = `
-      <span class="rank">${medal}</span>
-      <span class="name">${player.name}</span>
-      <span class="score">${player.score}</span>
-    `;
-    
-    if (index < 3) {
-      item.classList.add('top-three');
-    }
-    
-    container.appendChild(item);
-  });
+  const remainingPlayers = players.slice(3, 10);
+  
+  if (remainingPlayers.length > 0) {
+    container.style.display = 'block';
+    remainingPlayers.forEach((player, index) => {
+      const item = document.createElement('div');
+      item.className = 'leaderboard-item';
+      
+      const rank = index + 4; // Start at 4
+      
+      item.innerHTML = `
+        <span class="rank">${rank}.</span>
+        <span class="name">${player.name}</span>
+        <span class="score">${player.score}</span>
+      `;
+      
+      container.appendChild(item);
+    });
+  } else if (players.length < 3) {
+    // Fallback: Show all as list if less than 3 players
+    container.style.display = 'block';
+    players.forEach((player, index) => {
+      const item = document.createElement('div');
+      item.className = 'leaderboard-item';
+      
+      const medal = index < 3 ? ['🥇', '🥈', '🥉'][index] : `${index + 1}.`;
+      
+      item.innerHTML = `
+        <span class="rank">${medal}</span>
+        <span class="name">${player.name}</span>
+        <span class="score">${player.score}</span>
+      `;
+      
+      if (index < 3) {
+        item.classList.add('top-three');
+      }
+      
+      container.appendChild(item);
+    });
+  } else {
+    // Exactly 3 players: all on podium, hide list
+    container.style.display = 'none';
+  }
 }
 
 function redrawCanvas() {

@@ -147,6 +147,27 @@ input[type="text"]:focus {
   cursor: not-allowed;
 }
 
+.btn-secondary {
+  background: #6b7280;
+  color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #4b5563;
+  transform: translateY(-1px);
+}
+
+.btn-secondary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-secondary:disabled {
+  background: var(--border);
+  color: var(--text-light);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .btn-large {
   width: 100%;
   padding: 1.25rem;
@@ -251,6 +272,31 @@ input[type="text"]:focus {
 }
 
 /* Lobby Screen */
+.late-join-warning {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde047 100%);
+  border: 2px solid #facc15;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin: 1.5rem 0;
+  text-align: center;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.late-join-warning strong {
+  font-size: 1.1rem;
+  color: #854d0e;
+}
+
+.late-join-warning p {
+  margin: 0.5rem 0;
+  color: #713f12;
+}
+
+.late-join-warning .btn {
+  margin-top: 1rem;
+  min-width: 200px;
+}
+
 .lobby-info {
   display: flex;
   justify-content: center;
